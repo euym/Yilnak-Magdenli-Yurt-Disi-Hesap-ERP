@@ -37,6 +37,7 @@ function cleanPayload(kind, payload) {
 app.get('/', (_, res) => res.json(ok({ name: 'Yılnak & Mağdenli ERP API', status: 'running' })));
 app.get('/health', (_, res) => res.json(ok({ status: 'running' })));
 
+
 app.get('/definitions', async (_, res) => {
   try {
     const q = await Promise.all([
@@ -51,35 +52,23 @@ app.get('/definitions', async (_, res) => {
       supabase.from('erp_expense_definitions').select('*').order('name'),
       supabase.from('erp_allowance_definitions').select('*').order('created_at', { ascending: false })
     ]);
-    const err = q.find(x => x.error);
-    if (err) return fail(res, 400, err.error.message);
+
+    const firstError = q.find(x => x.error)?.error;
+    if (firstError) throw firstError;
+
     res.json(ok({
-      projects: q[0].data || [], drivers: q[1].data || [], tractors: q[2].data || [], trailers: q[3].data || [], escorts: q[4].data || [], escortVehicles: q[5].data || [], countries: q[6].data || [], cities: q[7].data || [], expenseDefinitions: q[8].data || [],
+      projects: q[0].data || [],
+      drivers: q[1].data || [],
+      tractors: q[2].data || [],
+      trailers: q[3].data || [],
+      escorts: q[4].data || [],
+      escortVehicles: q[5].data || [],
+      countries: q[6].data || [],
+      cities: q[7].data || [],
+      expenseDefinitions: q[8].data || [],
       allowanceDefinitions: q[9].data || []
     }));
-  } catch (e) { fail(res, 500, e.message); }
-});
-
-app.post('/definitions/:kind', async (req, res) => {
-  const kind = req.params.kind;
-  const table = tableMap[kind];
-  if (!table) return fail(res, 404, 'Tanım türü bulunamadı.');
-  const payload = cleanPayload(kind, req.body || {});
-  if (['projects', 'drivers', 'escorts', 'countries'].includes(kind) && !payload.name) return fail(res, 422, 'Ad alanı zorunlu.');
-  if (['tractors', 'trailers', 'escortVehicles'].includes(kind) && !payload.plate) return fail(res, 422, 'Plaka alanı zorunlu.');
-  if (kind === 'cities' && (!payload.country_id || !payload.name)) return fail(res, 422, 'Şehir için ülke ve şehir adı zorunlu.');
-  if (kind === 'expenseDefinitions' && (!payload.name || !payload.category)) return fail(res, 422, 'Masraf adı ve kategori zorunlu.');
-  const { data, error } = await supabase.from(table).insert(payload).select().single();
-  if (error) return fail(res, 400, error.message);
-  res.json(ok(data));
-});
-
-app.delete('/definitions/:kind/:id', async (req, res) => {
-  const table = tableMap[req.params.kind];
-  if (!table) return fail(res, 404, 'Tanım türü bulunamadı.');
-  const { error } = await supabase.from(table).delete().eq('id', req.params.id);
-  if (error) return fail(res, 400, error.message);
-  res.json(ok({ deleted: true }));
+  } catch (err) { fail(res, 500, err.message); }
 });
 
 app.get('/trips', async (_, res) => {
@@ -116,7 +105,7 @@ app.post('/advances', async (req, res) => {
     amount: payload.amount,
     currency: payload.currency || 'TRY',
     advance_date: payload.advance_date || null,
-    note: payload.note || null
+    description: payload.note || payload.description || null
   };
   const { data, error } = await supabase.from('erp_advances').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
@@ -152,7 +141,7 @@ app.post('/expenses', async (req, res) => {
     amount: payload.amount,
     currency: payload.currency || def.default_currency || 'TRY',
     expense_date: payload.expense_date || null,
-    note: payload.note || null
+    description: payload.note || payload.description || null
   };
   const { data, error } = await supabase.from('erp_expenses').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);

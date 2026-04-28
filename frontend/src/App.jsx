@@ -8,7 +8,11 @@ const blankTrip = {
   project_id: '', project_name: '', load_type: '', load_width: '', load_height: '', load_length: '', load_weight: '',
   tractor_tonnage: '', trailer_tonnage: '', tonnage_capacity_formula: 130000,
   start_country_id: '', start_city_id: '', unloading_country_id: '', unloading_city_id: '', end_country_id: '', end_city_id: '',
-  trip_count: 1, start_km: '', end_km: '', driver_id: '', tractor_id: '', tractor_info_id: '', trailer_id: '', trailer_info_id: '',
+  trip_count: 1, start_km: '', end_km: '',
+  domestic_start_date: '', domestic_exit_date: '', domestic_return_date: '', domestic_end_date: '',
+  abroad_entry_date: '', abroad_exit_date: '',
+  domestic_work_days: 0, abroad_work_days: 0,
+  driver_id: '', tractor_id: '', tractor_info_id: '', trailer_id: '', trailer_info_id: '',
   escort_id: '', escort_vehicle_id: '', escort_vehicle_info_id: ''
 };
 
@@ -49,6 +53,56 @@ const defTabs = [
   ['cities', 'Şehir']
 ];
 
+
+function dateObj(value) {
+  return value ? new Date(value + 'T00:00:00') : null;
+}
+
+function countSundaysInclusive(start, end) {
+  const a = dateObj(start);
+  const b = dateObj(end);
+  if (!a || !b || b < a) return 0;
+  let count = 0;
+  for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === 0) count += 1;
+  }
+  return count;
+}
+
+function baseDaysInclusive(start, end) {
+  const a = dateObj(start);
+  const b = dateObj(end);
+  if (!a || !b || b < a) return 0;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+function baseDaysBorderRule(start, end) {
+  const a = dateObj(start);
+  const b = dateObj(end);
+  if (!a || !b || b <= a) return 0;
+  return Math.round((b - a) / 86400000);
+}
+
+function calcAllowanceDaysFromDates(values) {
+  const totalTripDays = baseDaysInclusive(values.domestic_start_date, values.domestic_end_date);
+  const abroadBaseDays = baseDaysBorderRule(values.abroad_entry_date, values.abroad_exit_date);
+  const abroadSundays = countSundaysInclusive(values.abroad_entry_date, values.abroad_exit_date);
+  const domesticBaseDays = Math.max(0, totalTripDays - abroadBaseDays);
+  const domesticSundays =
+    countSundaysInclusive(values.domestic_start_date, values.domestic_exit_date) +
+    countSundaysInclusive(values.domestic_return_date, values.domestic_end_date);
+
+  return {
+    domesticDays: domesticBaseDays + domesticSundays,
+    abroadDays: abroadBaseDays + abroadSundays,
+    domesticBaseDays,
+    abroadBaseDays,
+    domesticSundays,
+    abroadSundays
+  };
+}
+
+
 function numberValue(value) {
   const n = Number(String(value || '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -74,15 +128,41 @@ function App() {
     return json.data;
   }
 
+  async function safeRequest(path, fallback) {
+    try {
+      return await request(path);
+    } catch (err) {
+      console.error(path, err);
+      setMessage('Bağlantı uyarısı: ' + path + ' yüklenemedi - ' + err.message);
+      return fallback;
+    }
+  }
+
   async function loadAll() {
     const [definitions, tripList, expenseList, advanceList, allowanceList] = await Promise.all([
-      request('/definitions'), request('/trips'), request('/expenses'), request('/advances'), request('/allowances')
+      safeRequest('/definitions', { projects: [], drivers: [], tractors: [], trailers: [], escorts: [], escortVehicles: [], countries: [], cities: [], expenseDefinitions: [], allowanceDefinitions: [] }),
+      safeRequest('/trips', []),
+      safeRequest('/expenses', []),
+      safeRequest('/advances', []),
+      safeRequest('/allowances', [])
     ]);
-    setDefs(definitions);
-    setTrips(tripList);
-    setExpenses(expenseList);
-    setAdvances(advanceList);
-    setAllowances(allowanceList);
+
+    setDefs({
+      projects: definitions.projects || [],
+      drivers: definitions.drivers || [],
+      tractors: definitions.tractors || [],
+      trailers: definitions.trailers || [],
+      escorts: definitions.escorts || [],
+      escortVehicles: definitions.escortVehicles || [],
+      countries: definitions.countries || [],
+      cities: definitions.cities || [],
+      expenseDefinitions: definitions.expenseDefinitions || [],
+      allowanceDefinitions: definitions.allowanceDefinitions || []
+    });
+    setTrips(tripList || []);
+    setExpenses(expenseList || []);
+    setAdvances(advanceList || []);
+    setAllowances(allowanceList || []);
   }
 
   useEffect(() => {
@@ -97,6 +177,7 @@ function App() {
   const tonnagePercent = useMemo(() => totalTonnage / (numberValue(trip.tonnage_capacity_formula) || 130000) * 100, [totalTonnage, trip.tonnage_capacity_formula]);
   const totalTripKm = useMemo(() => Math.max(0, numberValue(trip.end_km) - numberValue(trip.start_km)), [trip.start_km, trip.end_km]);
   const tripKm = useMemo(() => totalTripKm / 2, [totalTripKm]);
+  const tripAllowanceDays = useMemo(() => calcAllowanceDaysFromDates(trip), [trip.domestic_start_date, trip.domestic_exit_date, trip.domestic_return_date, trip.domestic_end_date, trip.abroad_entry_date, trip.abroad_exit_date]);
   const driverProjectTotalTripCount = useMemo(() => {
     if (!trip.driver_id || !trip.project_id) return 0;
     return trips.filter(t => t.driver_id === trip.driver_id && t.project_id === trip.project_id).reduce((s, t) => s + (numberValue(t.trip_count) || 1), 0) + (numberValue(trip.trip_count) || 0);
@@ -120,7 +201,7 @@ function App() {
   async function saveTrip(e) {
     e.preventDefault();
     try {
-      const payload = { ...trip, project_name: defs.projects.find(p => p.id === trip.project_id)?.name || trip.project_name || null, total_tonnage: totalTonnage, tonnage_fill_percent: tonnagePercent, trip_km: tripKm, total_trip_km: totalTripKm };
+      const payload = { ...trip, project_name: defs.projects.find(p => p.id === trip.project_id)?.name || trip.project_name || null, total_tonnage: totalTonnage, tonnage_fill_percent: tonnagePercent, trip_km: tripKm, total_trip_km: totalTripKm, domestic_work_days: tripAllowanceDays.domesticDays, abroad_work_days: tripAllowanceDays.abroadDays };
       const saved = await request('/trips', { method: 'POST', body: JSON.stringify(payload) });
       setMessage('Sefer kaydedildi. Masraf ekranına geçildi.');
       setExpense({ ...blankExpense, trip_id: saved.id });
@@ -146,15 +227,17 @@ function App() {
         <button className={screen === 'allowances' ? 'active' : ''} onClick={() => setScreen('allowances')}>Harcırah</button>
       </div>
       {message && <div className="message">{message}</div>}
-      {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} citiesFor={citiesFor} />}
+      {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} tripAllowanceDays={tripAllowanceDays} citiesFor={citiesFor} />}
       {screen === 'definitions' && <Definitions defs={defs} reload={loadAll} request={request} />}
       {screen === 'expenses' && <ExpenseScreen defs={defs} trips={trips} expenses={expenses} expense={expense} setExpense={setExpense} request={request} reload={loadAll} />}
       {screen === 'advances' && <AdvanceScreen trips={trips} advances={advances} expenses={expenses} advance={advance} setAdvance={setAdvance} request={request} reload={loadAll} />}
+      {screen === 'allowances' && <AllowanceScreen defs={defs} trips={trips} allowances={allowances} allowance={allowance} setAllowance={setAllowance} request={request} reload={loadAll} />}
     </div>
   );
 }
 
-function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonnagePercent, tripKm, totalTripKm, driverProjectTotalTripCount, citiesFor }) {
+
+function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonnagePercent, tripKm, totalTripKm, driverProjectTotalTripCount, tripAllowanceDays, citiesFor }) {
   return (
     <div className="layout">
       <aside className="sideCard">
@@ -181,6 +264,18 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
             <ReadOnly label="Tonaj Doluluk (%)" value={tonnagePercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} />
             <Input type="number" placeholder="Tonaj kapasite formülü" value={trip.tonnage_capacity_formula} onChange={v => setField('tonnage_capacity_formula', v)} />
           </div></section>
+
+          <section><h3>Sefer Ekipman ve Şoförleri</h3><div className="grid two">
+            <Select label="Sürücü Adı Soyadı" value={trip.driver_id} onChange={v => setField('driver_id', v)} options={defs.drivers} textKey="name" />
+            <Select label="Çekici Plakası" value={trip.tractor_id} onChange={v => setField('tractor_id', v)} options={defs.tractors} textKey="plate" />
+            <Select label="Çekici Bilgileri" value={trip.tractor_info_id} onChange={v => setField('tractor_info_id', v)} options={defs.tractors} textKey="info" fallbackKey="plate" />
+            <Select label="Dorse Plakası" value={trip.trailer_id} onChange={v => setField('trailer_id', v)} options={defs.trailers} textKey="plate" />
+            <Select label="Dorse Bilgileri" value={trip.trailer_info_id} onChange={v => setField('trailer_info_id', v)} options={defs.trailers} textKey="info" fallbackKey="plate" />
+            <Select label="Öncü Adı Soyadı" value={trip.escort_id} onChange={v => setField('escort_id', v)} options={defs.escorts} textKey="name" />
+            <Select label="Öncü Plakası" value={trip.escort_vehicle_id} onChange={v => setField('escort_vehicle_id', v)} options={defs.escortVehicles} textKey="plate" />
+            <Select label="Öncü Araç Bilgileri" value={trip.escort_vehicle_info_id} onChange={v => setField('escort_vehicle_info_id', v)} options={defs.escortVehicles} textKey="info" fallbackKey="plate" />
+          </div></section>
+
           <section><h3>Sefer Konumları</h3><div className="grid two">
             <Select label="Sefer Başlangıç Ülke" value={trip.start_country_id} onChange={v => setField('start_country_id', v)} options={defs.countries} textKey="name" />
             <Select label="Sefer Başlangıç Şehri" value={trip.start_city_id} onChange={v => setField('start_city_id', v)} options={citiesFor(trip.start_country_id)} textKey="name" />
@@ -195,16 +290,18 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
             <ReadOnly label="Sefer KM" value={tripKm.toLocaleString('tr-TR')} />
             <ReadOnly label="Toplam Sefer KM" value={totalTripKm.toLocaleString('tr-TR')} />
           </div><p className="hint">Sefer KM, toplam KM'nin yarısıdır. Toplam Sefer KM = Bitiş KM - Başlangıç KM.</p></section>
-          <section><h3>Sefer Ekipman ve Şoförleri</h3><div className="grid two">
-            <Select label="Sürücü Adı Soyadı" value={trip.driver_id} onChange={v => setField('driver_id', v)} options={defs.drivers} textKey="name" />
-            <Select label="Çekici Plakası" value={trip.tractor_id} onChange={v => setField('tractor_id', v)} options={defs.tractors} textKey="plate" />
-            <Select label="Çekici Bilgileri" value={trip.tractor_info_id} onChange={v => setField('tractor_info_id', v)} options={defs.tractors} textKey="info" fallbackKey="plate" />
-            <Select label="Dorse Plakası" value={trip.trailer_id} onChange={v => setField('trailer_id', v)} options={defs.trailers} textKey="plate" />
-            <Select label="Dorse Bilgileri" value={trip.trailer_info_id} onChange={v => setField('trailer_info_id', v)} options={defs.trailers} textKey="info" fallbackKey="plate" />
-            <Select label="Öncü Adı Soyadı" value={trip.escort_id} onChange={v => setField('escort_id', v)} options={defs.escorts} textKey="name" />
-            <Select label="Öncü Plakası" value={trip.escort_vehicle_id} onChange={v => setField('escort_vehicle_id', v)} options={defs.escortVehicles} textKey="plate" />
-            <Select label="Öncü Araç Bilgileri" value={trip.escort_vehicle_info_id} onChange={v => setField('escort_vehicle_info_id', v)} options={defs.escortVehicles} textKey="info" fallbackKey="plate" />
-          </div></section>
+
+          <section><h3>Sefer Tarihleri</h3><div className="grid two">
+            <Input type="date" placeholder="Yurt İçi Sefer Başlangıç" value={trip.domestic_start_date} onChange={v => setField('domestic_start_date', v)} />
+            <Input type="date" placeholder="Yurt İçi Çıkış" value={trip.domestic_exit_date} onChange={v => setField('domestic_exit_date', v)} />
+            <Input type="date" placeholder="Yurt İçi Giriş" value={trip.domestic_return_date} onChange={v => setField('domestic_return_date', v)} />
+            <Input type="date" placeholder="Yurt İçi Sefer Bitiş" value={trip.domestic_end_date} onChange={v => setField('domestic_end_date', v)} />
+            <Input type="date" placeholder="Yurt Dışı Giriş" value={trip.abroad_entry_date} onChange={v => setField('abroad_entry_date', v)} />
+            <Input type="date" placeholder="Yurt Dışı Çıkış" value={trip.abroad_exit_date} onChange={v => setField('abroad_exit_date', v)} />
+            <ReadOnly label="Yurt İçi Çalışılan Gün" value={tripAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
+            <ReadOnly label="Yurt Dışı Çalışılan Gün" value={tripAllowanceDays.abroadDays.toLocaleString('tr-TR')} />
+          </div><p className="hint">Kural: Pazar günleri çift sayılır. Yurda giriş günü yurt içi harcırahına dahildir.</p></section>
+
           <button className="primary" type="submit">Seferi Kaydet ve Masrafa Geç</button>
         </form>
       </main>
@@ -279,19 +376,36 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
 
 
 
+
+function moneyByCurrency(items, amountKey = 'amount', currencyKey = 'currency') {
+  return (items || []).reduce((acc, item) => {
+    const currency = (item[currencyKey] || 'TRY').toUpperCase();
+    acc[currency] = (acc[currency] || 0) + numberValue(item[amountKey]);
+    return acc;
+  }, {});
+}
+
 function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request, reload }) {
   const selectedTripId = advance.trip_id || '';
   const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : expenses;
   const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : advances;
 
-  const totalExpense = tripExpenses.reduce((s, x) => s + numberValue(x.amount), 0);
-  const totalAdvance = tripAdvances.reduce((s, x) => s + numberValue(x.amount), 0);
-  const enteredAdvance = numberValue(advance.amount);
-  const balanceBeforeSave = totalAdvance - totalExpense;
-  const balanceAfterSave = totalAdvance + enteredAdvance - totalExpense;
+  const expenseByCurrency = moneyByCurrency(tripExpenses, 'amount', 'currency');
+  const advanceByCurrency = moneyByCurrency(tripAdvances, 'amount', 'currency');
+  const enteredCurrency = (advance.currency || 'TRY').toUpperCase();
+  const enteredAmount = numberValue(advance.amount);
 
-  const balanceLabel = balanceAfterSave > 0 ? 'Şoförde / kişide kalan' : balanceAfterSave < 0 ? 'Firmadan alacak' : 'Sefer kapandı';
-  const balanceClass = balanceAfterSave > 0 ? 'ok' : balanceAfterSave < 0 ? 'warn' : 'closed';
+  const currencies = Array.from(new Set(['TRY', 'EUR', 'USD', ...Object.keys(expenseByCurrency), ...Object.keys(advanceByCurrency), enteredCurrency]));
+  const balances = currencies.map(currency => {
+    const expenseTotal = expenseByCurrency[currency] || 0;
+    const currentAdvanceTotal = advanceByCurrency[currency] || 0;
+    const afterAdvanceTotal = currentAdvanceTotal + (currency === enteredCurrency ? enteredAmount : 0);
+    const currentBalance = currentAdvanceTotal - expenseTotal;
+    const afterBalance = afterAdvanceTotal - expenseTotal;
+    return { currency, expenseTotal, currentAdvanceTotal, afterAdvanceTotal, currentBalance, afterBalance };
+  });
+
+  const selectedCurrencyBalance = balances.find(x => x.currency === enteredCurrency) || { afterBalance: enteredAmount };
 
   function setAdvanceField(name, value) {
     setAdvance(prev => ({ ...prev, [name]: value }));
@@ -305,12 +419,12 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
     if (!advance.amount || numberValue(advance.amount) <= 0) return alert('Tutar 0’dan büyük olmalı.');
     if (!advance.currency) return alert('Para birimi seçiniz.');
 
-    const after = totalAdvance + numberValue(advance.amount) - totalExpense;
+    const after = selectedCurrencyBalance.afterBalance;
     const msg = after > 0
-      ? `Bu kayıt sonrası şoförde/kişide ${after.toLocaleString('tr-TR')} ${advance.currency} kalacak. Kaydedilsin mi?`
+      ? `Bu kayıt sonrası ${enteredCurrency} bakiyesinde şoförde/kişide ${after.toLocaleString('tr-TR')} ${enteredCurrency} kalacak. Kaydedilsin mi?`
       : after < 0
-        ? `Bu kayıt sonrası firma personele ${Math.abs(after).toLocaleString('tr-TR')} ${advance.currency} borçlu görünecek. Kaydedilsin mi?`
-        : 'Bu kayıt sonrası sefer bakiyesi sıfırlanacak. Kaydedilsin mi?';
+        ? `Bu kayıt sonrası ${enteredCurrency} bakiyesinde firma personele ${Math.abs(after).toLocaleString('tr-TR')} ${enteredCurrency} borçlu görünecek. Kaydedilsin mi?`
+        : `Bu kayıt sonrası ${enteredCurrency} bakiyesi sıfırlanacak. Kaydedilsin mi?`;
 
     if (!confirm(msg)) return;
 
@@ -321,17 +435,21 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
   }
 
   return <div className="layout">
-    <aside className="sideCard"><h3>Avans / Masraf Bakiye Kontrolü</h3><div className="summaryGrid">
-      <div><span>Seçili Sefer Masrafı</span><b>{totalExpense.toLocaleString('tr-TR')}</b></div>
-      <div><span>Mevcut Avans</span><b>{totalAdvance.toLocaleString('tr-TR')}</b></div>
-      <div><span>Şu Anki Bakiye</span><b>{Math.abs(balanceBeforeSave).toLocaleString('tr-TR')}</b></div>
-      <div><span>Kayıt Sonrası</span><b>{Math.abs(balanceAfterSave).toLocaleString('tr-TR')}</b></div>
-    </div>
-    <div className={`balanceBox ${balanceClass}`}>
-      <b>{balanceLabel}</b>
-      <span>{Math.abs(balanceAfterSave).toLocaleString('tr-TR')} {advance.currency || 'TRY'}</span>
-    </div>
-    <p className="hint">Bakiye hesabı seçili sefere göre yapılır: Toplam Avans - Toplam Masraf.</p>
+    <aside className="sideCard"><h3>Avans / Masraf Bakiye Kontrolü</h3>
+      <p className="hint">Bakiye hesabı seçili sefere ve para birimine göre ayrı yapılır.</p>
+      <div className="currencyBalanceList">
+        {balances.map(row => {
+          const label = row.afterBalance > 0 ? 'Şoförde / kişide kalan' : row.afterBalance < 0 ? 'Firmadan alacak' : 'Kapandı';
+          const cls = row.afterBalance > 0 ? 'ok' : row.afterBalance < 0 ? 'warn' : 'closed';
+          return <div className={`currencyBalance ${cls}`} key={row.currency}>
+            <div className="currencyHeader">{row.currency}</div>
+            <div><span>Masraf</span><b>{row.expenseTotal.toLocaleString('tr-TR')} {row.currency}</b></div>
+            <div><span>Mevcut Avans</span><b>{row.currentAdvanceTotal.toLocaleString('tr-TR')} {row.currency}</b></div>
+            <div><span>Kayıt Sonrası Avans</span><b>{row.afterAdvanceTotal.toLocaleString('tr-TR')} {row.currency}</b></div>
+            <div><span>{label}</span><b>{Math.abs(row.afterBalance).toLocaleString('tr-TR')} {row.currency}</b></div>
+          </div>;
+        })}
+      </div>
     </aside>
     <main className="card"><h2>Avans Girişi</h2>
       <form onSubmit={saveAdvance}>
@@ -348,7 +466,7 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
         </div>
         <button className="primary" type="submit">Avans Ekle</button>
       </form>
-      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || x.description || '-'}</td></tr>)}</tbody></table></div>
     </main>
   </div>;
 }
@@ -370,18 +488,39 @@ function daysBetweenBorderRule(start, end) {
   return diff > 0 ? diff : 0;
 }
 
+
+
+function formatDateForInput(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
 function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, request, reload }) {
-  const totalTripDays = daysBetweenInclusive(allowance.domestic_start_date, allowance.domestic_end_date);
-  const abroadDays = daysBetweenBorderRule(allowance.abroad_entry_date, allowance.abroad_exit_date);
-  const domesticDays = Math.max(0, totalTripDays - abroadDays);
-  const domesticTotal = domesticDays * numberValue(domesticDailyAmount);
-  const abroadTotal = abroadDays * numberValue(abroadDailyAmount);
-  const selectedTripAllowances = allowance.trip_id ? allowances.filter(x => x.trip_id === allowance.trip_id) : allowances;
-  const activeAllowanceDef = (defs.allowanceDefinitions || []).find(x => x.is_active) || (defs.allowanceDefinitions || [])[0];
+  const safeDefs = defs || { allowanceDefinitions: [] };
+  const allowanceDefinitions = safeDefs.allowanceDefinitions || [];
+  const activeAllowanceDef = allowanceDefinitions.find(x => x.is_active) || allowanceDefinitions[0] || null;
+  const selectedTrip = (trips || []).find(t => t.id === allowance.trip_id) || null;
+
+  const tripDates = {
+    domestic_start_date: formatDateForInput(selectedTrip?.domestic_start_date),
+    domestic_exit_date: formatDateForInput(selectedTrip?.domestic_exit_date),
+    domestic_return_date: formatDateForInput(selectedTrip?.domestic_return_date),
+    domestic_end_date: formatDateForInput(selectedTrip?.domestic_end_date),
+    abroad_entry_date: formatDateForInput(selectedTrip?.abroad_entry_date),
+    abroad_exit_date: formatDateForInput(selectedTrip?.abroad_exit_date)
+  };
+
   const domesticDailyAmount = allowance.domestic_daily_amount || activeAllowanceDef?.domestic_daily_amount || '';
   const domesticCurrency = allowance.domestic_currency || activeAllowanceDef?.domestic_currency || 'TRY';
   const abroadDailyAmount = allowance.abroad_daily_amount || activeAllowanceDef?.abroad_daily_amount || '';
   const abroadCurrency = allowance.abroad_currency || activeAllowanceDef?.abroad_currency || 'EUR';
+
+  const calculatedDays = calcAllowanceDaysFromDates(tripDates);
+  const domesticDays = calculatedDays.domesticDays;
+  const abroadDays = calculatedDays.abroadDays;
+  const domesticTotal = domesticDays * numberValue(domesticDailyAmount);
+  const abroadTotal = abroadDays * numberValue(abroadDailyAmount);
+  const selectedTripAllowances = allowance.trip_id ? (allowances || []).filter(x => x.trip_id === allowance.trip_id) : (allowances || []);
 
   function setAllowanceField(name, value) {
     setAllowance(prev => ({ ...prev, [name]: value }));
@@ -390,17 +529,18 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
   async function saveAllowance(e) {
     e.preventDefault();
     if (!allowance.trip_id) return alert('Sefer seçiniz.');
-    if (!allowance.domestic_start_date) return alert('Yurt içi sefer başlangıç tarihi giriniz.');
-    if (!allowance.domestic_exit_date) return alert('Yurt içi çıkış tarihi giriniz.');
-    if (!allowance.domestic_return_date) return alert('Yurt içi giriş tarihi giriniz.');
-    if (!allowance.domestic_end_date) return alert('Yurt içi sefer bitiş tarihi giriniz.');
-    if (!allowance.abroad_entry_date) return alert('Yurt dışı giriş tarihi giriniz.');
-    if (!allowance.abroad_exit_date) return alert('Yurt dışı çıkış tarihi giriniz.');
-    if (domesticDays <= 0) return alert('Yurt içi geçen gün 0 olamaz. Tarihleri kontrol edin.');
-    if (abroadDays <= 0) return alert('Yurt dışı geçen gün 0 olamaz. Tarihleri kontrol edin.');
+    if (!selectedTrip) return alert('Sefer bulunamadı.');
+    if (!tripDates.domestic_start_date || !tripDates.domestic_exit_date || !tripDates.domestic_return_date || !tripDates.domestic_end_date || !tripDates.abroad_entry_date || !tripDates.abroad_exit_date) {
+      return alert('Bu seferde harcırah tarihleri eksik. Lütfen Sefer Bilgileri > Sefer Tarihleri bölümünü doldurun.');
+    }
+    if (domesticDays <= 0) return alert('Yurt içi geçen gün 0 olamaz. Sefer tarihlerini kontrol edin.');
+    if (abroadDays <= 0) return alert('Yurt dışı geçen gün 0 olamaz. Sefer tarihlerini kontrol edin.');
+    if (!domesticDailyAmount || numberValue(domesticDailyAmount) <= 0) return alert('Yurt içi günlük harcırah tutarı giriniz.');
+    if (!abroadDailyAmount || numberValue(abroadDailyAmount) <= 0) return alert('Yurt dışı günlük harcırah tutarı giriniz.');
 
     const payload = {
       ...allowance,
+      ...tripDates,
       domestic_days: domesticDays,
       domestic_daily_amount: domesticDailyAmount,
       domestic_currency: domesticCurrency,
@@ -424,8 +564,9 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
       <div><span>Yurt Dışı Gün</span><b>{abroadDays}</b></div>
       <div><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {abroadCurrency}</b></div>
     </div>
-    <p className="hint">Kural: Yurt dışı gün = Yurt Dışı Çıkış - Yurt Dışı Giriş. Yurda giriş günü Türkiye harcırahına sayılır.</p>
-    <p className="hint">Günlük tutarlar Tanımlar &gt; Harcırah ekranından gelir; bu sefer için elle değiştirilebilir.</p>
+    <p className="hint">Tarihler Sefer Bilgileri ekranından gelir ve burada değiştirilemez.</p>
+    <p className="hint">Kural: Pazar günleri çift sayılır. Yurda giriş günü Türkiye harcırahına sayılır.</p>
+    <p className="hint">Günlük tutarlar Tanımlar &gt; Harcırah ekranından gelir; bu sefer için tutar değiştirilebilir.</p>
     </aside>
     <main className="card"><h2>Şoför Harcırah</h2>
       <form onSubmit={saveAllowance}>
@@ -433,19 +574,19 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
           <div className="allowanceTitle">Şoför Harcırah</div>
 
           <label>Sefer</label>
-          <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={trips.map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+          <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
 
           <label>Yurt İçi Sefer Başlangıç</label>
-          <input type="date" required value={allowance.domestic_start_date || ''} onChange={e => setAllowanceField('domestic_start_date', e.target.value)} />
+          <input type="date" readOnly value={tripDates.domestic_start_date} />
 
           <label>Yurt İçi Çıkış</label>
-          <input type="date" required value={allowance.domestic_exit_date || ''} onChange={e => setAllowanceField('domestic_exit_date', e.target.value)} />
+          <input type="date" readOnly value={tripDates.domestic_exit_date} />
 
           <label>Yurt İçi Giriş</label>
-          <input type="date" required value={allowance.domestic_return_date || ''} onChange={e => setAllowanceField('domestic_return_date', e.target.value)} />
+          <input type="date" readOnly value={tripDates.domestic_return_date} />
 
           <label>Yurt İçi Sefer Bitiş</label>
-          <input type="date" required value={allowance.domestic_end_date || ''} onChange={e => setAllowanceField('domestic_end_date', e.target.value)} />
+          <input type="date" readOnly value={tripDates.domestic_end_date} />
 
           <label>Yurt İçi Geçen Gün</label>
           <input readOnly value={domesticDays} />
@@ -458,10 +599,10 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
           </div>
 
           <label>Yurt Dışı Giriş</label>
-          <input type="date" required value={allowance.abroad_entry_date || ''} onChange={e => setAllowanceField('abroad_entry_date', e.target.value)} />
+          <input type="date" readOnly value={tripDates.abroad_entry_date} />
 
           <label>Yurt Dışı Çıkış</label>
-          <input type="date" required value={allowance.abroad_exit_date || ''} onChange={e => setAllowanceField('abroad_exit_date', e.target.value)} />
+          <input type="date" readOnly value={tripDates.abroad_exit_date} />
 
           <label>Yurt Dışı Geçen Gün</label>
           <input readOnly value={abroadDays} />
@@ -483,7 +624,6 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
     </main>
   </div>;
 }
-
 
 function Definitions({ defs, reload, request }) {
   const [tab, setTab] = useState('expenseDefinitions');
