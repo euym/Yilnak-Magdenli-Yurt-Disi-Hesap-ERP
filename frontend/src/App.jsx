@@ -95,15 +95,23 @@ function App() {
     return formula ? (totalTonnage / formula) * 100 : 0;
   }, [totalTonnage, trip.tonnage_capacity_formula]);
 
-  const tripKm = useMemo(() => {
+  const totalTripKm = useMemo(() => {
     const start = numberValue(trip.start_km);
     const end = numberValue(trip.end_km);
     return end > start ? end - start : 0;
   }, [trip.start_km, trip.end_km]);
 
-  const totalTripKm = useMemo(() => {
-    return tripKm * (numberValue(trip.trip_count) || 1);
-  }, [tripKm, trip.trip_count]);
+  const tripKm = useMemo(() => {
+    return totalTripKm / 2;
+  }, [totalTripKm]);
+
+  const driverProjectTotalTripCount = useMemo(() => {
+    if (!trip.driver_id || !trip.project_id) return 0;
+    const registeredTotal = trips
+      .filter(t => t.driver_id === trip.driver_id && t.project_id === trip.project_id)
+      .reduce((sum, t) => sum + (numberValue(t.trip_count) || 1), 0);
+    return registeredTotal + (numberValue(trip.trip_count) || 0);
+  }, [trips, trip.driver_id, trip.project_id, trip.trip_count]);
 
   function setField(name, value) {
     setTrip(prev => {
@@ -162,12 +170,15 @@ function App() {
           <aside className="sideCard">
             <h3>Kayıtlı Seferler</h3>
             {trips.length === 0 && <p>Henüz sefer yok.</p>}
-            {trips.map(t => (
-              <div className="tripItem" key={t.id}>
-                <b>{t.project_name || 'Projesiz Sefer'}</b>
-                <span>{new Date(t.created_at).toLocaleDateString('tr-TR')}</span>
-              </div>
-            ))}
+            {trips.map(t => {
+              const driverName = defs.drivers.find(d => d.id === t.driver_id)?.name || 'Şoför yok';
+              return (
+                <div className="tripItem" key={t.id}>
+                  <b>{t.project_name || 'Projesiz Sefer'}</b>
+                  <span>{driverName} · Sefer: {Number(t.trip_count || 1)} · {new Date(t.created_at).toLocaleDateString('tr-TR')}</span>
+                </div>
+              );
+            })}
           </aside>
 
           <main className="card">
@@ -199,13 +210,15 @@ function App() {
                   <Select label="İndirme Şehri" value={trip.unloading_city_id} onChange={v => setField('unloading_city_id', v)} options={citiesFor(trip.unloading_country_id)} textKey="name" />
                   <Select label="Sefer Bitiş Ülkesi" value={trip.end_country_id} onChange={v => setField('end_country_id', v)} options={defs.countries} textKey="name" />
                   <Select label="Sefer Bitiş Şehri" value={trip.end_city_id} onChange={v => setField('end_city_id', v)} options={citiesFor(trip.end_country_id)} textKey="name" />
-                  <Input type="number" placeholder="Toplam Sefer Sayısı" value={trip.trip_count} onChange={v => setField('trip_count', v)} />
-                  <div className="emptyCell"></div>
+                  <Input type="number" placeholder="Sefer Sayısı" value={trip.trip_count} onChange={v => setField('trip_count', v)} />
+                  <ReadOnly label="Toplam Sefer Sayısı" value={driverProjectTotalTripCount.toLocaleString('tr-TR')} />
                   <Input type="number" placeholder="Başlangıç KM" value={trip.start_km} onChange={v => setField('start_km', v)} />
                   <Input type="number" placeholder="Bitiş KM" value={trip.end_km} onChange={v => setField('end_km', v)} />
                   <ReadOnly label="Sefer KM" value={tripKm.toLocaleString('tr-TR')} />
                   <ReadOnly label="Toplam Sefer KM" value={totalTripKm.toLocaleString('tr-TR')} />
                 </div>
+                <p className="hint">Sefer KM, toplam KM'nin yarısıdır: sadece gidiş mesafesi olarak hesaplanır. Toplam Sefer KM = Bitiş KM - Başlangıç KM.</p>
+                <p className="hint">Toplam Sefer Sayısı sadece aynı proje ve aynı şoför kayıtlarından otomatik hesaplanır.</p>
               </section>
 
               <section>

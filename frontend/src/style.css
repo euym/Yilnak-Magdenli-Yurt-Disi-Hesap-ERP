@@ -37,3 +37,5 @@ input:focus, select:focus { outline: 2px solid #b9d6ff; border-color: #2674e8; }
 }
 .emptyCell { min-height: 50px; }
 @media (max-width: 900px) { .emptyCell { display:none; } }
+
+.hint { color: #5f6f84; font-size: 14px; margin-top: 10px; }

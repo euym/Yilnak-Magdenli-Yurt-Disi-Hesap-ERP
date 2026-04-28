@@ -28,3 +28,18 @@ SUPABASE_KEY=Supabase anon/public key
 
 ## Supabase
 supabase/schema.sql dosyasını SQL Editor'da çalıştır.
+
+## V1.2 Düzeltme
+- Sefer Konumları bölümünde "Sefer Sayısı" yanına "Toplam Sefer Sayısı" eklendi.
+- Toplam Sefer Sayısı, seçilen şoförün kayıtlı seferlerinden otomatik hesaplanır.
+
+
+## V1.3 Düzeltme
+- Toplam Sefer Sayısı artık sadece aynı proje + aynı şoför eşleşmesindeki kayıtları toplar.
+- Farklı projedeki aynı şoför seferleri bu toplamı artırmaz.
+
+
+## V1.4 Düzeltme
+- Toplam Sefer KM = Bitiş KM - Başlangıç KM.
+- Sefer KM = Toplam Sefer KM / 2.
+- Böylece Sefer KM sadece gidişi, Toplam Sefer KM gidiş+dönüş toplamını temsil eder.
