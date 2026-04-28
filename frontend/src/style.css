@@ -39,3 +39,17 @@ input:focus, select:focus { outline: 2px solid #b9d6ff; border-color: #2674e8; }
 @media (max-width: 900px) { .emptyCell { display:none; } }
 
 .hint { color: #5f6f84; font-size: 14px; margin-top: 10px; }
+
+.summaryGrid { display: grid; gap: 10px; }
+.summaryGrid div { background: #f7fbff; border: 1px solid #dbeafe; border-radius: 14px; padding: 12px; }
+.summaryGrid span { display: block; color: #5f6f84; font-size: 13px; margin-bottom: 4px; }
+.summaryGrid b { font-size: 20px; color: #102f4b; }
+.fuelBox { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: #f7fbff; border: 1px solid #dbeafe; border-radius: 16px; padding: 14px; margin: 14px 0; }
+.fuelBox label { display: flex; align-items: center; gap: 6px; }
+.fuelBox input[type="radio"] { width: auto; min-height: auto; }
+.fuelBox input[type="number"] { max-width: 220px; }
+.expenseBottom { margin-top: 12px; }
+.tableWrap { width: 100%; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border-bottom: 1px solid #e6ecf3; padding: 10px; text-align: left; font-size: 14px; white-space: nowrap; }
+th { background: #f7fbff; color: #102f4b; }

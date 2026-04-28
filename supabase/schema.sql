@@ -113,3 +113,36 @@ on conflict (country_id, name) do nothing;
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated;
+
+create table if not exists erp_expense_definitions (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  category text not null,
+  default_currency text not null default 'TRY',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists erp_expenses (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  trip_id uuid not null references erp_trips(id) on delete cascade,
+  expense_definition_id uuid not null references erp_expense_definitions(id),
+  country_id uuid references erp_countries(id),
+  city_id uuid references erp_cities(id),
+  vehicle_type text,
+  fuel_status text check (fuel_status in ('Boş', 'Dolu') or fuel_status is null),
+  liter numeric,
+  amount numeric not null,
+  currency text not null default 'TRY',
+  expense_date date,
+  note text
+);
+
+insert into erp_expense_definitions(name, category, default_currency) values
+('Mazot', 'Yakıt', 'EUR'),
+('Otoban', 'Yol', 'EUR'),
+('Kantar', 'Belge', 'TRY'),
+('Belge', 'Belge', 'TRY'),
+('Vinç', 'Operasyon', 'TRY'),
+('Eskort', 'Operasyon', 'EUR')
+on conflict (name) do nothing;
