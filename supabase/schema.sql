@@ -162,3 +162,8 @@ create table if not exists erp_advances (
 
 alter table erp_advances disable row level security;
 grant select, insert, update, delete on erp_advances to anon, authenticated;
+
+
+-- AVANS / MASRAF BAKIYE KONTROLÜ İÇİN INDEXLER
+create index if not exists idx_erp_expenses_trip_id on public.erp_expenses(trip_id);
+create index if not exists idx_erp_advances_trip_id on public.erp_advances(trip_id);

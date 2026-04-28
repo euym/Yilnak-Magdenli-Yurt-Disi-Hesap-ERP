@@ -258,10 +258,20 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
 }
 
 
+
 function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request, reload }) {
-  const totalExpense = expenses.reduce((s, x) => s + numberValue(x.amount), 0);
-  const totalAdvance = advances.reduce((s, x) => s + numberValue(x.amount), 0);
-  const balance = totalAdvance - totalExpense;
+  const selectedTripId = advance.trip_id || '';
+  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : expenses;
+  const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : advances;
+
+  const totalExpense = tripExpenses.reduce((s, x) => s + numberValue(x.amount), 0);
+  const totalAdvance = tripAdvances.reduce((s, x) => s + numberValue(x.amount), 0);
+  const enteredAdvance = numberValue(advance.amount);
+  const balanceBeforeSave = totalAdvance - totalExpense;
+  const balanceAfterSave = totalAdvance + enteredAdvance - totalExpense;
+
+  const balanceLabel = balanceAfterSave > 0 ? 'Şoförde / kişide kalan' : balanceAfterSave < 0 ? 'Firmadan alacak' : 'Sefer kapandı';
+  const balanceClass = balanceAfterSave > 0 ? 'ok' : balanceAfterSave < 0 ? 'warn' : 'closed';
 
   function setAdvanceField(name, value) {
     setAdvance(prev => ({ ...prev, [name]: value }));
@@ -272,19 +282,37 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
     if (!advance.trip_id) return alert('Sefer seçiniz.');
     if (!advance.receiver_type) return alert('Avans alan tipini seçiniz.');
     if (!advance.receiver_name) return alert('Avans alan kişi/adı giriniz.');
-    if (!advance.amount) return alert('Tutar giriniz.');
+    if (!advance.amount || numberValue(advance.amount) <= 0) return alert('Tutar 0’dan büyük olmalı.');
+    if (!advance.currency) return alert('Para birimi seçiniz.');
+
+    const after = totalAdvance + numberValue(advance.amount) - totalExpense;
+    const msg = after > 0
+      ? `Bu kayıt sonrası şoförde/kişide ${after.toLocaleString('tr-TR')} ${advance.currency} kalacak. Kaydedilsin mi?`
+      : after < 0
+        ? `Bu kayıt sonrası firma personele ${Math.abs(after).toLocaleString('tr-TR')} ${advance.currency} borçlu görünecek. Kaydedilsin mi?`
+        : 'Bu kayıt sonrası sefer bakiyesi sıfırlanacak. Kaydedilsin mi?';
+
+    if (!confirm(msg)) return;
+
     await request('/advances', { method: 'POST', body: JSON.stringify(advance) });
-    setAdvance({ ...blankAdvance, trip_id: advance.trip_id });
+    setAdvance({ ...blankAdvance, trip_id: advance.trip_id, currency: advance.currency || 'TRY' });
     await reload();
     alert('Avans eklendi');
   }
 
   return <div className="layout">
-    <aside className="sideCard"><h3>Avans / Masraf Özeti</h3><div className="summaryGrid">
-      <div><span>Toplam Masraf</span><b>{totalExpense.toLocaleString('tr-TR')}</b></div>
-      <div><span>Toplam Avans</span><b>{totalAdvance.toLocaleString('tr-TR')}</b></div>
-      <div><span>{balance >= 0 ? 'Şoförde Kalan' : 'Firmadan Alacak'}</span><b>{Math.abs(balance).toLocaleString('tr-TR')}</b></div>
-    </div></aside>
+    <aside className="sideCard"><h3>Avans / Masraf Bakiye Kontrolü</h3><div className="summaryGrid">
+      <div><span>Seçili Sefer Masrafı</span><b>{totalExpense.toLocaleString('tr-TR')}</b></div>
+      <div><span>Mevcut Avans</span><b>{totalAdvance.toLocaleString('tr-TR')}</b></div>
+      <div><span>Şu Anki Bakiye</span><b>{Math.abs(balanceBeforeSave).toLocaleString('tr-TR')}</b></div>
+      <div><span>Kayıt Sonrası</span><b>{Math.abs(balanceAfterSave).toLocaleString('tr-TR')}</b></div>
+    </div>
+    <div className={`balanceBox ${balanceClass}`}>
+      <b>{balanceLabel}</b>
+      <span>{Math.abs(balanceAfterSave).toLocaleString('tr-TR')} {advance.currency || 'TRY'}</span>
+    </div>
+    <p className="hint">Bakiye hesabı seçili sefere göre yapılır: Toplam Avans - Toplam Masraf.</p>
+    </aside>
     <main className="card"><h2>Avans Girişi</h2>
       <form onSubmit={saveAdvance}>
         <div className="grid two">
@@ -293,14 +321,14 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
             <option value="">Avans alan tipi</option><option>Şoför</option><option>Öncü</option><option>Taşeron</option><option>Diğer</option>
           </select>
           <input required placeholder="Avans alan kişi / firma" value={advance.receiver_name || ''} onChange={e => setAdvanceField('receiver_name', e.target.value)} />
-          <input required type="number" step="0.01" placeholder="Tutar" value={advance.amount || ''} onChange={e => setAdvanceField('amount', e.target.value)} />
-          <select value={advance.currency || 'TRY'} onChange={e => setAdvanceField('currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
+          <input required type="number" min="0.01" step="0.01" placeholder="Tutar" value={advance.amount || ''} onChange={e => setAdvanceField('amount', e.target.value)} />
+          <select required value={advance.currency || 'TRY'} onChange={e => setAdvanceField('currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
           <input type="date" value={advance.advance_date || ''} onChange={e => setAdvanceField('advance_date', e.target.value)} />
           <input placeholder="Açıklama" value={advance.note || ''} onChange={e => setAdvanceField('note', e.target.value)} />
         </div>
         <button className="primary" type="submit">Avans Ekle</button>
       </form>
-      <h3>Girilen Avanslar</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{advances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || '-'}</td></tr>)}</tbody></table></div>
     </main>
   </div>;
 }
