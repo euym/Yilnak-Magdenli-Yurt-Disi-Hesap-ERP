@@ -220,14 +220,16 @@ function App() {
         <p>Sefer bilgi girişi, tanımlar, masraf ve avans girişi.</p>
       </header>
       <div className="topActions">
-        <button className={screen === 'trip' ? 'active' : ''} onClick={() => setScreen('trip')}>Sefer Bilgileri</button>
-        <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
-        <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
+        <button className={screen === 'report' ? 'active' : ''} onClick={() => setScreen('report')}>Rapor</button>
         <button className={screen === 'expenseSummary' ? 'active' : ''} onClick={() => setScreen('expenseSummary')}>Masraf Özeti</button>
-        <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
+        <button className={screen === 'trip' ? 'active' : ''} onClick={() => setScreen('trip')}>Sefer Bilgileri</button>
         <button className={screen === 'allowances' ? 'active' : ''} onClick={() => setScreen('allowances')}>Harcırah</button>
+        <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
+        <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
+        <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
       </div>
       {message && <div className="message">{message}</div>}
+      {screen === 'report' && <div className="card"><h2>Rapor</h2><p>Final rapor ekranı sonraki adımda eklenecek.</p></div>}
       {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} tripAllowanceDays={tripAllowanceDays} citiesFor={citiesFor} />}
       {screen === 'definitions' && <Definitions defs={defs} reload={loadAll} request={request} />}
       {screen === 'expenses' && <ExpenseScreen defs={defs} trips={trips} expenses={expenses} expense={expense} setExpense={setExpense} request={request} reload={loadAll} />}
@@ -457,7 +459,7 @@ function SummaryBox({ title, children, tone = '' }) {
 function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const [selectedTripId, setSelectedTripId] = useState('');
   const selectedTrip = trips.find(t => t.id === selectedTripId) || null;
-  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : expenses;
+  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
 
   const totalTripKm = numberValue(selectedTrip?.total_trip_km);
   const fuel = tripExpenses.filter(isFuelExpense);
@@ -521,9 +523,9 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
         </div>
       </div>
 
-      {!selectedTrip && <div className="message">Masraf özetini görmek için sefer seçiniz.</div>}
+      {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar örnek görünümde 0 değerlerle gösteriliyor.</div>}
 
-      {selectedTrip && <>
+      <>
         <div className="expenseSummaryGrid">
           <SummaryBox title="Çekici Yakıt" tone="fuel">
             <ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(emptyTractorFuel.filter(x => regionGroup(x) === 'domestic')))} />
@@ -611,7 +613,7 @@ function moneyByCurrency(items, amountKey = 'amount', currencyKey = 'currency') 
 
 function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request, reload }) {
   const selectedTripId = advance.trip_id || '';
-  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : expenses;
+  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
   const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : advances;
 
   const expenseByCurrency = moneyByCurrency(tripExpenses, 'amount', 'currency');
