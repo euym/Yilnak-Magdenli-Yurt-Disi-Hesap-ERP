@@ -21,7 +21,23 @@ const blankAdvance = {
   trip_id: '', receiver_type: '', receiver_name: '', amount: '', currency: 'TRY', advance_date: '', note: ''
 };
 
+const blankAllowance = {
+  trip_id: '',
+  domestic_start_date: '',
+  domestic_exit_date: '',
+  domestic_return_date: '',
+  domestic_end_date: '',
+  domestic_daily_amount: '',
+  domestic_currency: 'TRY',
+  abroad_entry_date: '',
+  abroad_exit_date: '',
+  abroad_daily_amount: '',
+  abroad_currency: 'EUR',
+  note: ''
+};
+
 const defTabs = [
+  ['allowanceDefinitions', 'Harcırah'],
   ['expenseDefinitions', 'Masraf'],
   ['projects', 'Proje Adı'],
   ['drivers', 'Sürücü'],
@@ -44,9 +60,11 @@ function App() {
   const [trips, setTrips] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [advances, setAdvances] = useState([]);
+  const [allowances, setAllowances] = useState([]);
   const [trip, setTrip] = useState(blankTrip);
   const [expense, setExpense] = useState(blankExpense);
   const [advance, setAdvance] = useState(blankAdvance);
+  const [allowance, setAllowance] = useState(blankAllowance);
   const [message, setMessage] = useState('');
 
   async function request(path, options = {}) {
@@ -57,20 +75,21 @@ function App() {
   }
 
   async function loadAll() {
-    const [definitions, tripList, expenseList, advanceList] = await Promise.all([
-      request('/definitions'), request('/trips'), request('/expenses'), request('/advances')
+    const [definitions, tripList, expenseList, advanceList, allowanceList] = await Promise.all([
+      request('/definitions'), request('/trips'), request('/expenses'), request('/advances'), request('/allowances')
     ]);
     setDefs(definitions);
     setTrips(tripList);
     setExpenses(expenseList);
     setAdvances(advanceList);
+    setAllowances(allowanceList);
   }
 
   useEffect(() => {
     loadAll().catch(err => {
       console.error(err);
       setMessage('Bağlantı hatası: ' + err.message);
-      setDefs({ projects: [], drivers: [], tractors: [], trailers: [], escorts: [], escortVehicles: [], countries: [], cities: [], expenseDefinitions: [] });
+      setDefs({ projects: [], drivers: [], tractors: [], trailers: [], escorts: [], escortVehicles: [], countries: [], cities: [], expenseDefinitions: [], allowanceDefinitions: [] });
     });
   }, []);
 
@@ -124,6 +143,7 @@ function App() {
         <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
         <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
         <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
+        <button className={screen === 'allowances' ? 'active' : ''} onClick={() => setScreen('allowances')}>Harcırah</button>
       </div>
       {message && <div className="message">{message}</div>}
       {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} citiesFor={citiesFor} />}
@@ -333,6 +353,138 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
   </div>;
 }
 
+
+function daysBetweenInclusive(start, end) {
+  if (!start || !end) return 0;
+  const a = new Date(start + 'T00:00:00');
+  const b = new Date(end + 'T00:00:00');
+  const diff = Math.round((b - a) / 86400000) + 1;
+  return diff > 0 ? diff : 0;
+}
+
+function daysBetweenBorderRule(start, end) {
+  if (!start || !end) return 0;
+  const a = new Date(start + 'T00:00:00');
+  const b = new Date(end + 'T00:00:00');
+  const diff = Math.round((b - a) / 86400000);
+  return diff > 0 ? diff : 0;
+}
+
+function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, request, reload }) {
+  const totalTripDays = daysBetweenInclusive(allowance.domestic_start_date, allowance.domestic_end_date);
+  const abroadDays = daysBetweenBorderRule(allowance.abroad_entry_date, allowance.abroad_exit_date);
+  const domesticDays = Math.max(0, totalTripDays - abroadDays);
+  const domesticTotal = domesticDays * numberValue(domesticDailyAmount);
+  const abroadTotal = abroadDays * numberValue(abroadDailyAmount);
+  const selectedTripAllowances = allowance.trip_id ? allowances.filter(x => x.trip_id === allowance.trip_id) : allowances;
+  const activeAllowanceDef = (defs.allowanceDefinitions || []).find(x => x.is_active) || (defs.allowanceDefinitions || [])[0];
+  const domesticDailyAmount = allowance.domestic_daily_amount || activeAllowanceDef?.domestic_daily_amount || '';
+  const domesticCurrency = allowance.domestic_currency || activeAllowanceDef?.domestic_currency || 'TRY';
+  const abroadDailyAmount = allowance.abroad_daily_amount || activeAllowanceDef?.abroad_daily_amount || '';
+  const abroadCurrency = allowance.abroad_currency || activeAllowanceDef?.abroad_currency || 'EUR';
+
+  function setAllowanceField(name, value) {
+    setAllowance(prev => ({ ...prev, [name]: value }));
+  }
+
+  async function saveAllowance(e) {
+    e.preventDefault();
+    if (!allowance.trip_id) return alert('Sefer seçiniz.');
+    if (!allowance.domestic_start_date) return alert('Yurt içi sefer başlangıç tarihi giriniz.');
+    if (!allowance.domestic_exit_date) return alert('Yurt içi çıkış tarihi giriniz.');
+    if (!allowance.domestic_return_date) return alert('Yurt içi giriş tarihi giriniz.');
+    if (!allowance.domestic_end_date) return alert('Yurt içi sefer bitiş tarihi giriniz.');
+    if (!allowance.abroad_entry_date) return alert('Yurt dışı giriş tarihi giriniz.');
+    if (!allowance.abroad_exit_date) return alert('Yurt dışı çıkış tarihi giriniz.');
+    if (domesticDays <= 0) return alert('Yurt içi geçen gün 0 olamaz. Tarihleri kontrol edin.');
+    if (abroadDays <= 0) return alert('Yurt dışı geçen gün 0 olamaz. Tarihleri kontrol edin.');
+
+    const payload = {
+      ...allowance,
+      domestic_days: domesticDays,
+      domestic_daily_amount: domesticDailyAmount,
+      domestic_currency: domesticCurrency,
+      domestic_total: domesticTotal,
+      abroad_days: abroadDays,
+      abroad_daily_amount: abroadDailyAmount,
+      abroad_currency: abroadCurrency,
+      abroad_total: abroadTotal
+    };
+
+    await request('/allowances', { method: 'POST', body: JSON.stringify(payload) });
+    setAllowance({ ...blankAllowance, trip_id: allowance.trip_id });
+    await reload();
+    alert('Harcırah kaydedildi');
+  }
+
+  return <div className="layout">
+    <aside className="sideCard"><h3>Harcırah Özeti</h3><div className="summaryGrid">
+      <div><span>Yurt İçi Gün</span><b>{domesticDays}</b></div>
+      <div><span>Yurt İçi Harcırah</span><b>{domesticTotal.toLocaleString('tr-TR')} {domesticCurrency}</b></div>
+      <div><span>Yurt Dışı Gün</span><b>{abroadDays}</b></div>
+      <div><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {abroadCurrency}</b></div>
+    </div>
+    <p className="hint">Kural: Yurt dışı gün = Yurt Dışı Çıkış - Yurt Dışı Giriş. Yurda giriş günü Türkiye harcırahına sayılır.</p>
+    <p className="hint">Günlük tutarlar Tanımlar &gt; Harcırah ekranından gelir; bu sefer için elle değiştirilebilir.</p>
+    </aside>
+    <main className="card"><h2>Şoför Harcırah</h2>
+      <form onSubmit={saveAllowance}>
+        <div className="allowanceTable">
+          <div className="allowanceTitle">Şoför Harcırah</div>
+
+          <label>Sefer</label>
+          <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={trips.map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+
+          <label>Yurt İçi Sefer Başlangıç</label>
+          <input type="date" required value={allowance.domestic_start_date || ''} onChange={e => setAllowanceField('domestic_start_date', e.target.value)} />
+
+          <label>Yurt İçi Çıkış</label>
+          <input type="date" required value={allowance.domestic_exit_date || ''} onChange={e => setAllowanceField('domestic_exit_date', e.target.value)} />
+
+          <label>Yurt İçi Giriş</label>
+          <input type="date" required value={allowance.domestic_return_date || ''} onChange={e => setAllowanceField('domestic_return_date', e.target.value)} />
+
+          <label>Yurt İçi Sefer Bitiş</label>
+          <input type="date" required value={allowance.domestic_end_date || ''} onChange={e => setAllowanceField('domestic_end_date', e.target.value)} />
+
+          <label>Yurt İçi Geçen Gün</label>
+          <input readOnly value={domesticDays} />
+
+          <label className="redLabel">Yurt İçi Harcırah</label>
+          <div className="inlineMoney">
+            <input type="number" min="0" step="0.01" value={domesticDailyAmount} onChange={e => setAllowanceField('domestic_daily_amount', e.target.value)} />
+            <select value={domesticCurrency} onChange={e => setAllowanceField('domestic_currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
+            <b>{domesticTotal.toLocaleString('tr-TR')}</b>
+          </div>
+
+          <label>Yurt Dışı Giriş</label>
+          <input type="date" required value={allowance.abroad_entry_date || ''} onChange={e => setAllowanceField('abroad_entry_date', e.target.value)} />
+
+          <label>Yurt Dışı Çıkış</label>
+          <input type="date" required value={allowance.abroad_exit_date || ''} onChange={e => setAllowanceField('abroad_exit_date', e.target.value)} />
+
+          <label>Yurt Dışı Geçen Gün</label>
+          <input readOnly value={abroadDays} />
+
+          <label className="redLabel">Yurt Dışı Harcırah</label>
+          <div className="inlineMoney">
+            <input type="number" min="0" step="0.01" value={abroadDailyAmount} onChange={e => setAllowanceField('abroad_daily_amount', e.target.value)} />
+            <select value={abroadCurrency} onChange={e => setAllowanceField('abroad_currency', e.target.value)}><option>EUR</option><option>TRY</option><option>USD</option></select>
+            <b>{abroadTotal.toLocaleString('tr-TR')}</b>
+          </div>
+        </div>
+        <input className="fullInput" placeholder="Açıklama" value={allowance.note || ''} onChange={e => setAllowanceField('note', e.target.value)} />
+        <button className="primary" type="submit">Harcırah Kaydet</button>
+      </form>
+
+      <h3>Kayıtlı Harcırahlar</h3>
+      <div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Yİ Gün</th><th>Yİ Toplam</th><th>YD Gün</th><th>YD Toplam</th><th>Not</th></tr></thead>
+      <tbody>{selectedTripAllowances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.domestic_days}</td><td>{x.domestic_total} {x.domestic_currency}</td><td>{x.abroad_days}</td><td>{x.abroad_total} {x.abroad_currency}</td><td>{x.note || '-'}</td></tr>)}</tbody></table></div>
+    </main>
+  </div>;
+}
+
+
 function Definitions({ defs, reload, request }) {
   const [tab, setTab] = useState('expenseDefinitions');
   const [form, setForm] = useState({});
@@ -340,6 +492,7 @@ function Definitions({ defs, reload, request }) {
     e.preventDefault();
     try {
       let payload = {};
+      if (tab === 'allowanceDefinitions') payload = { name: form.name, domestic_daily_amount: form.domestic_daily_amount, domestic_currency: form.domestic_currency || 'TRY', abroad_daily_amount: form.abroad_daily_amount, abroad_currency: form.abroad_currency || 'EUR', is_active: form.is_active !== false };
       if (tab === 'expenseDefinitions') payload = { name: form.name, category: form.category, default_currency: form.default_currency || 'TRY' };
       if (tab === 'projects') payload = { name: form.name };
       if (tab === 'drivers') payload = { name: form.name };
@@ -360,6 +513,13 @@ function Definitions({ defs, reload, request }) {
       {['projects', 'drivers', 'escorts', 'countries'].includes(tab) && <input required placeholder="Ad / Tanım" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />}
       {['tractors', 'trailers', 'escortVehicles'].includes(tab) && <><input required placeholder="Plaka" value={form.plate || ''} onChange={e => setForm({ ...form, plate: e.target.value })} /><input placeholder="Bilgiler" value={form.info || ''} onChange={e => setForm({ ...form, info: e.target.value })} /></>}
       {tab === 'cities' && <><select required value={form.country_id || ''} onChange={e => setForm({ ...form, country_id: e.target.value })}><option value="">Ülke seç</option>{defs.countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input required placeholder="Şehir adı" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /></>}
+      {tab === 'allowanceDefinitions' && <>
+        <input required placeholder="Tanım adı örn. Standart Harcırah" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
+        <input required type="number" step="0.01" placeholder="Yurt içi günlük tutar" value={form.domestic_daily_amount || ''} onChange={e => setForm({ ...form, domestic_daily_amount: e.target.value })} />
+        <select value={form.domestic_currency || 'TRY'} onChange={e => setForm({ ...form, domestic_currency: e.target.value })}><option>TRY</option><option>EUR</option><option>USD</option></select>
+        <input required type="number" step="0.01" placeholder="Yurt dışı günlük tutar" value={form.abroad_daily_amount || ''} onChange={e => setForm({ ...form, abroad_daily_amount: e.target.value })} />
+        <select value={form.abroad_currency || 'EUR'} onChange={e => setForm({ ...form, abroad_currency: e.target.value })}><option>EUR</option><option>TRY</option><option>USD</option></select>
+      </>}
       {tab === 'expenseDefinitions' && <><input required placeholder="Masraf adı örn. Mazot" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /><select required value={form.category || ''} onChange={e => setForm({ ...form, category: e.target.value })}><option value="">Kategori seç</option><option>Yakıt</option><option>Yol</option><option>Belge</option><option>Operasyon</option><option>Personel</option><option>Diğer</option></select><select value={form.default_currency || 'TRY'} onChange={e => setForm({ ...form, default_currency: e.target.value })}><option>TRY</option><option>EUR</option><option>USD</option></select></>}
       <button className="primary">Ekle</button>
     </form><div className="definitionList">{list.map(item => <div key={item.id}><span>{item.name || item.plate} {item.category ? `- ${item.category}` : ''} {item.default_currency ? `- ${item.default_currency}` : ''} {item.info ? `- ${item.info}` : ''}</span><button onClick={() => remove(item.id)}>Sil</button></div>)}</div></div>;

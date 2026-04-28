@@ -167,3 +167,56 @@ grant select, insert, update, delete on erp_advances to anon, authenticated;
 -- AVANS / MASRAF BAKIYE KONTROLÜ İÇİN INDEXLER
 create index if not exists idx_erp_expenses_trip_id on public.erp_expenses(trip_id);
 create index if not exists idx_erp_advances_trip_id on public.erp_advances(trip_id);
+
+
+-- HARCIRAH MODÜLÜ
+create table if not exists public.erp_allowances (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  trip_id uuid references public.erp_trips(id) on delete cascade,
+
+  domestic_start_date date,
+  domestic_exit_date date,
+  domestic_return_date date,
+  domestic_end_date date,
+  domestic_days numeric default 0,
+  domestic_daily_amount numeric default 1200,
+  domestic_currency text not null default 'TRY',
+  domestic_total numeric default 0,
+
+  abroad_entry_date date,
+  abroad_exit_date date,
+  abroad_days numeric default 0,
+  abroad_daily_amount numeric default 40,
+  abroad_currency text not null default 'EUR',
+  abroad_total numeric default 0,
+
+  note text
+);
+
+alter table public.erp_allowances disable row level security;
+grant select, insert, update, delete on public.erp_allowances to anon, authenticated;
+create index if not exists idx_erp_allowances_trip_id on public.erp_allowances(trip_id);
+notify pgrst, 'reload schema';
+
+
+-- HARCIRAH TANIMLARI
+create table if not exists public.erp_allowance_definitions (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  domestic_daily_amount numeric not null default 0,
+  domestic_currency text not null default 'TRY',
+  abroad_daily_amount numeric not null default 0,
+  abroad_currency text not null default 'EUR',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+insert into public.erp_allowance_definitions(name, domestic_daily_amount, domestic_currency, abroad_daily_amount, abroad_currency, is_active)
+values ('Standart Harcırah', 1200, 'TRY', 40, 'EUR', true)
+on conflict (name) do nothing;
+
+alter table public.erp_allowance_definitions disable row level security;
+grant select, insert, update, delete on public.erp_allowance_definitions to anon, authenticated;
+
+notify pgrst, 'reload schema';

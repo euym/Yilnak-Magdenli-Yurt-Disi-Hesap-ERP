@@ -21,13 +21,15 @@ const tableMap = {
   escortVehicles: 'erp_escort_vehicles',
   countries: 'erp_countries',
   cities: 'erp_cities',
-  expenseDefinitions: 'erp_expense_definitions'
+  expenseDefinitions: 'erp_expense_definitions',
+  allowanceDefinitions: 'erp_allowance_definitions'
 };
 
 function cleanPayload(kind, payload) {
   if (['projects', 'drivers', 'escorts', 'countries'].includes(kind)) return { name: String(payload.name || '').trim() };
   if (['tractors', 'trailers', 'escortVehicles'].includes(kind)) return { plate: String(payload.plate || '').trim().toUpperCase(), info: String(payload.info || '').trim() || null };
   if (kind === 'cities') return { country_id: payload.country_id, name: String(payload.name || '').trim() };
+  if (kind === 'allowanceDefinitions') return { name: String(payload.name || '').trim(), domestic_daily_amount: Number(payload.domestic_daily_amount || 0), domestic_currency: String(payload.domestic_currency || 'TRY').trim().toUpperCase(), abroad_daily_amount: Number(payload.abroad_daily_amount || 0), abroad_currency: String(payload.abroad_currency || 'EUR').trim().toUpperCase(), is_active: payload.is_active !== false };
   if (kind === 'expenseDefinitions') return { name: String(payload.name || '').trim(), category: String(payload.category || '').trim(), default_currency: String(payload.default_currency || 'TRY').trim().toUpperCase() };
   return payload;
 }
@@ -46,12 +48,14 @@ app.get('/definitions', async (_, res) => {
       supabase.from('erp_escort_vehicles').select('*').order('plate'),
       supabase.from('erp_countries').select('*').order('name'),
       supabase.from('erp_cities').select('*').order('name'),
-      supabase.from('erp_expense_definitions').select('*').order('name')
+      supabase.from('erp_expense_definitions').select('*').order('name'),
+      supabase.from('erp_allowance_definitions').select('*').order('created_at', { ascending: false })
     ]);
     const err = q.find(x => x.error);
     if (err) return fail(res, 400, err.error.message);
     res.json(ok({
-      projects: q[0].data || [], drivers: q[1].data || [], tractors: q[2].data || [], trailers: q[3].data || [], escorts: q[4].data || [], escortVehicles: q[5].data || [], countries: q[6].data || [], cities: q[7].data || [], expenseDefinitions: q[8].data || []
+      projects: q[0].data || [], drivers: q[1].data || [], tractors: q[2].data || [], trailers: q[3].data || [], escorts: q[4].data || [], escortVehicles: q[5].data || [], countries: q[6].data || [], cities: q[7].data || [], expenseDefinitions: q[8].data || [],
+      allowanceDefinitions: q[9].data || []
     }));
   } catch (e) { fail(res, 500, e.message); }
 });
@@ -156,4 +160,43 @@ app.post('/expenses', async (req, res) => {
 });
 
 const port = process.env.PORT || 10000;
+
+app.get('/allowances', async (_, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('erp_allowances')
+      .select('*, erp_trips(project_name)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(ok((data || []).map(x => ({ ...x, trip_name: x.erp_trips?.project_name }))));
+  } catch (err) { fail(res, 500, err.message); }
+});
+
+app.post('/allowances', async (req, res) => {
+  try {
+    const payload = {
+      trip_id: req.body.trip_id || null,
+      domestic_start_date: req.body.domestic_start_date || null,
+      domestic_exit_date: req.body.domestic_exit_date || null,
+      domestic_return_date: req.body.domestic_return_date || null,
+      domestic_end_date: req.body.domestic_end_date || null,
+      domestic_days: req.body.domestic_days || 0,
+      domestic_daily_amount: req.body.domestic_daily_amount || 0,
+      domestic_currency: req.body.domestic_currency || 'TRY',
+      domestic_total: req.body.domestic_total || 0,
+      abroad_entry_date: req.body.abroad_entry_date || null,
+      abroad_exit_date: req.body.abroad_exit_date || null,
+      abroad_days: req.body.abroad_days || 0,
+      abroad_daily_amount: req.body.abroad_daily_amount || 0,
+      abroad_currency: req.body.abroad_currency || 'EUR',
+      abroad_total: req.body.abroad_total || 0,
+      note: req.body.note || null
+    };
+    const { data, error } = await supabase.from('erp_allowances').insert(payload).select('*').single();
+    if (error) throw error;
+    res.json(ok(data));
+  } catch (err) { fail(res, 400, err.message); }
+});
+
+
 app.listen(port, () => console.log(`Yilnak ERP API port ${port}`));
