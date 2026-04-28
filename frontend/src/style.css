@@ -165,3 +165,69 @@ th { background: #f7fbff; color: #102f4b; }
   color: #334155;
   font-weight: 700;
 }
+
+
+.screenHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.screenHeader h2 {
+  margin-bottom: 4px;
+}
+.screenHeader p {
+  margin: 0;
+  color: #64748b;
+}
+.erpSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.erpSection h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.erpSection select {
+  min-height: 44px;
+}
+
+
+/* Harcırah ekranı artık ERP form düzeninde; eski Excel görünümü kullanılmıyor. */
+.allowanceTable {
+  display: none;
+}
+
+
+.labeledField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.labeledField span {
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+}
+.labeledField input {
+  border: 0;
+  border-top: 1px solid #eef2f7;
+  border-radius: 0;
+  padding: 8px 0 0 0;
+  background: transparent;
+  min-height: 28px;
+}
+.labeledField input:focus {
+  outline: none;
+}

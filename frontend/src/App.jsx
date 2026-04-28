@@ -292,12 +292,12 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
           </div><p className="hint">Sefer KM, toplam KM'nin yarısıdır. Toplam Sefer KM = Bitiş KM - Başlangıç KM.</p></section>
 
           <section><h3>Sefer Tarihleri</h3><div className="grid two">
-            <Input type="date" placeholder="Yurt İçi Sefer Başlangıç" value={trip.domestic_start_date} onChange={v => setField('domestic_start_date', v)} />
-            <Input type="date" placeholder="Yurt İçi Çıkış" value={trip.domestic_exit_date} onChange={v => setField('domestic_exit_date', v)} />
-            <Input type="date" placeholder="Yurt İçi Giriş" value={trip.domestic_return_date} onChange={v => setField('domestic_return_date', v)} />
-            <Input type="date" placeholder="Yurt İçi Sefer Bitiş" value={trip.domestic_end_date} onChange={v => setField('domestic_end_date', v)} />
-            <Input type="date" placeholder="Yurt Dışı Giriş" value={trip.abroad_entry_date} onChange={v => setField('abroad_entry_date', v)} />
-            <Input type="date" placeholder="Yurt Dışı Çıkış" value={trip.abroad_exit_date} onChange={v => setField('abroad_exit_date', v)} />
+            <LabeledDate label="Yurt İçi Sefer Başlangıç" value={trip.domestic_start_date} onChange={v => setField('domestic_start_date', v)} />
+            <LabeledDate label="Yurt İçi Çıkış" value={trip.domestic_exit_date} onChange={v => setField('domestic_exit_date', v)} />
+            <LabeledDate label="Yurt İçi Giriş" value={trip.domestic_return_date} onChange={v => setField('domestic_return_date', v)} />
+            <LabeledDate label="Yurt İçi Sefer Bitiş" value={trip.domestic_end_date} onChange={v => setField('domestic_end_date', v)} />
+            <LabeledDate label="Yurt Dışı Giriş" value={trip.abroad_entry_date} onChange={v => setField('abroad_entry_date', v)} />
+            <LabeledDate label="Yurt Dışı Çıkış" value={trip.abroad_exit_date} onChange={v => setField('abroad_exit_date', v)} />
             <ReadOnly label="Yurt İçi Çalışılan Gün" value={tripAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
             <ReadOnly label="Yurt Dışı Çalışılan Gün" value={tripAllowanceDays.abroadDays.toLocaleString('tr-TR')} />
           </div><p className="hint">Kural: Pazar günleri çift sayılır. Yurda giriş günü yurt içi harcırahına dahildir.</p></section>
@@ -495,6 +495,7 @@ function formatDateForInput(value) {
   return String(value).slice(0, 10);
 }
 
+
 function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, request, reload }) {
   const safeDefs = defs || { allowanceDefinitions: [] };
   const allowanceDefinitions = safeDefs.allowanceDefinitions || [];
@@ -558,69 +559,88 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
   }
 
   return <div className="layout">
-    <aside className="sideCard"><h3>Harcırah Özeti</h3><div className="summaryGrid">
-      <div><span>Yurt İçi Gün</span><b>{domesticDays}</b></div>
-      <div><span>Yurt İçi Harcırah</span><b>{domesticTotal.toLocaleString('tr-TR')} {domesticCurrency}</b></div>
-      <div><span>Yurt Dışı Gün</span><b>{abroadDays}</b></div>
-      <div><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {abroadCurrency}</b></div>
-    </div>
-    <p className="hint">Tarihler Sefer Bilgileri ekranından gelir ve burada değiştirilemez.</p>
-    <p className="hint">Kural: Pazar günleri çift sayılır. Yurda giriş günü Türkiye harcırahına sayılır.</p>
-    <p className="hint">Günlük tutarlar Tanımlar &gt; Harcırah ekranından gelir; bu sefer için tutar değiştirilebilir.</p>
+    <aside className="sideCard">
+      <h3>Harcırah Özeti</h3>
+      <div className="summaryGrid">
+        <div><span>Yurt İçi Çalışılan Gün</span><b>{domesticDays}</b></div>
+        <div><span>Yurt İçi Harcırah</span><b>{domesticTotal.toLocaleString('tr-TR')} {domesticCurrency}</b></div>
+        <div><span>Yurt Dışı Çalışılan Gün</span><b>{abroadDays}</b></div>
+        <div><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {abroadCurrency}</b></div>
+      </div>
+      <p className="hint">Tarihler Sefer Bilgileri ekranından gelir ve burada değiştirilemez.</p>
+      <p className="hint">Pazar günleri çift sayılır.</p>
     </aside>
-    <main className="card"><h2>Şoför Harcırah</h2>
-      <form onSubmit={saveAllowance}>
-        <div className="allowanceTable">
-          <div className="allowanceTitle">Şoför Harcırah</div>
 
-          <label>Sefer</label>
-          <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
-
-          <label>Yurt İçi Sefer Başlangıç</label>
-          <input type="date" readOnly value={tripDates.domestic_start_date} />
-
-          <label>Yurt İçi Çıkış</label>
-          <input type="date" readOnly value={tripDates.domestic_exit_date} />
-
-          <label>Yurt İçi Giriş</label>
-          <input type="date" readOnly value={tripDates.domestic_return_date} />
-
-          <label>Yurt İçi Sefer Bitiş</label>
-          <input type="date" readOnly value={tripDates.domestic_end_date} />
-
-          <label>Yurt İçi Geçen Gün</label>
-          <input readOnly value={domesticDays} />
-
-          <label className="redLabel">Yurt İçi Harcırah</label>
-          <div className="inlineMoney">
-            <input type="number" min="0" step="0.01" value={domesticDailyAmount} onChange={e => setAllowanceField('domestic_daily_amount', e.target.value)} />
-            <select value={domesticCurrency} onChange={e => setAllowanceField('domestic_currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
-            <b>{domesticTotal.toLocaleString('tr-TR')}</b>
-          </div>
-
-          <label>Yurt Dışı Giriş</label>
-          <input type="date" readOnly value={tripDates.abroad_entry_date} />
-
-          <label>Yurt Dışı Çıkış</label>
-          <input type="date" readOnly value={tripDates.abroad_exit_date} />
-
-          <label>Yurt Dışı Geçen Gün</label>
-          <input readOnly value={abroadDays} />
-
-          <label className="redLabel">Yurt Dışı Harcırah</label>
-          <div className="inlineMoney">
-            <input type="number" min="0" step="0.01" value={abroadDailyAmount} onChange={e => setAllowanceField('abroad_daily_amount', e.target.value)} />
-            <select value={abroadCurrency} onChange={e => setAllowanceField('abroad_currency', e.target.value)}><option>EUR</option><option>TRY</option><option>USD</option></select>
-            <b>{abroadTotal.toLocaleString('tr-TR')}</b>
-          </div>
+    <main className="card">
+      <div className="screenHeader">
+        <div>
+          <h2>Şoför Harcırah Hesabı</h2>
+          <p>Sefer tarihleri üzerinden yurt içi ve yurt dışı harcırah hesaplanır.</p>
         </div>
-        <input className="fullInput" placeholder="Açıklama" value={allowance.note || ''} onChange={e => setAllowanceField('note', e.target.value)} />
+      </div>
+
+      <form onSubmit={saveAllowance}>
+        <section className="erpSection">
+          <h3>Sefer Seçimi</h3>
+          <div className="grid two">
+            <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+            <ReadOnly label="Seçili Sefer" value={selectedTrip?.project_name || '-'} />
+          </div>
+        </section>
+
+        <section className="erpSection">
+          <h3>Yurt İçi Tarihleri</h3>
+          <div className="grid two">
+            <ReadOnly label="Yurt İçi Sefer Başlangıç" value={tripDates.domestic_start_date || '-'} />
+            <ReadOnly label="Yurt İçi Çıkış" value={tripDates.domestic_exit_date || '-'} />
+            <ReadOnly label="Yurt İçi Giriş" value={tripDates.domestic_return_date || '-'} />
+            <ReadOnly label="Yurt İçi Sefer Bitiş" value={tripDates.domestic_end_date || '-'} />
+            <ReadOnly label="Yurt İçi Geçen Gün" value={domesticDays.toLocaleString('tr-TR')} />
+          </div>
+        </section>
+
+        <section className="erpSection">
+          <h3>Yurt İçi Harcırah</h3>
+          <div className="grid three">
+            <Input type="number" placeholder="Yurt içi günlük tutar" value={domesticDailyAmount} onChange={v => setAllowanceField('domestic_daily_amount', v)} />
+            <select value={domesticCurrency} onChange={e => setAllowanceField('domestic_currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
+            <ReadOnly label="Yurt İçi Harcırah" value={`${domesticTotal.toLocaleString('tr-TR')} ${domesticCurrency}`} />
+          </div>
+        </section>
+
+        <section className="erpSection">
+          <h3>Yurt Dışı Tarihleri</h3>
+          <div className="grid two">
+            <ReadOnly label="Yurt Dışı Giriş" value={tripDates.abroad_entry_date || '-'} />
+            <ReadOnly label="Yurt Dışı Çıkış" value={tripDates.abroad_exit_date || '-'} />
+            <ReadOnly label="Yurt Dışı Geçen Gün" value={abroadDays.toLocaleString('tr-TR')} />
+          </div>
+        </section>
+
+        <section className="erpSection">
+          <h3>Yurt Dışı Harcırah</h3>
+          <div className="grid three">
+            <Input type="number" placeholder="Yurt dışı günlük tutar" value={abroadDailyAmount} onChange={v => setAllowanceField('abroad_daily_amount', v)} />
+            <select value={abroadCurrency} onChange={e => setAllowanceField('abroad_currency', e.target.value)}><option>EUR</option><option>TRY</option><option>USD</option></select>
+            <ReadOnly label="Yurt Dışı Harcırah" value={`${abroadTotal.toLocaleString('tr-TR')} ${abroadCurrency}`} />
+          </div>
+        </section>
+
+        <section className="erpSection">
+          <h3>Açıklama</h3>
+          <input className="fullInput" placeholder="Açıklama" value={allowance.note || ''} onChange={e => setAllowanceField('note', e.target.value)} />
+        </section>
+
         <button className="primary" type="submit">Harcırah Kaydet</button>
       </form>
 
       <h3>Kayıtlı Harcırahlar</h3>
-      <div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Yİ Gün</th><th>Yİ Toplam</th><th>YD Gün</th><th>YD Toplam</th><th>Not</th></tr></thead>
-      <tbody>{selectedTripAllowances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.domestic_days}</td><td>{x.domestic_total} {x.domestic_currency}</td><td>{x.abroad_days}</td><td>{x.abroad_total} {x.abroad_currency}</td><td>{x.note || '-'}</td></tr>)}</tbody></table></div>
+      <div className="tableWrap">
+        <table>
+          <thead><tr><th>Sefer</th><th>Yurt İçi Gün</th><th>Yurt İçi Toplam</th><th>Yurt Dışı Gün</th><th>Yurt Dışı Toplam</th><th>Not</th></tr></thead>
+          <tbody>{selectedTripAllowances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.domestic_days}</td><td>{x.domestic_total} {x.domestic_currency}</td><td>{x.abroad_days}</td><td>{x.abroad_total} {x.abroad_currency}</td><td>{x.note || '-'}</td></tr>)}</tbody>
+        </table>
+      </div>
     </main>
   </div>;
 }
@@ -663,6 +683,10 @@ function Definitions({ defs, reload, request }) {
       {tab === 'expenseDefinitions' && <><input required placeholder="Masraf adı örn. Mazot" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /><select required value={form.category || ''} onChange={e => setForm({ ...form, category: e.target.value })}><option value="">Kategori seç</option><option>Yakıt</option><option>Yol</option><option>Belge</option><option>Operasyon</option><option>Personel</option><option>Diğer</option></select><select value={form.default_currency || 'TRY'} onChange={e => setForm({ ...form, default_currency: e.target.value })}><option>TRY</option><option>EUR</option><option>USD</option></select></>}
       <button className="primary">Ekle</button>
     </form><div className="definitionList">{list.map(item => <div key={item.id}><span>{item.name || item.plate} {item.category ? `- ${item.category}` : ''} {item.default_currency ? `- ${item.default_currency}` : ''} {item.info ? `- ${item.info}` : ''}</span><button onClick={() => remove(item.id)}>Sil</button></div>)}</div></div>;
+}
+
+function LabeledDate({ label, value, onChange }) {
+  return <label className="labeledField"><span>{label}</span><input type="date" value={value || ''} onChange={e => onChange(e.target.value)} /></label>;
 }
 
 function Input({ value, onChange, placeholder, type = 'text' }) { return <input type={type} step="0.01" placeholder={placeholder} value={value ?? ''} onChange={e => onChange(e.target.value)} />; }
