@@ -35,3 +35,5 @@ input:focus, select:focus { outline: 2px solid #b9d6ff; border-color: #2674e8; }
   .page { padding: 10px; }
   .hero h1 { font-size: 24px; }
 }
+.emptyCell { min-height: 50px; }
+@media (max-width: 900px) { .emptyCell { display:none; } }

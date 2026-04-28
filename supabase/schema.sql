@@ -109,3 +109,7 @@ join (
   ('Sırbistan','Belgrad'), ('Sırbistan','Niş'), ('Macaristan','Budapeşte'), ('Almanya','Berlin'), ('Almanya','Münih'), ('Fransa','Paris'), ('İtalya','Roma')
 ) as x(country, city) on x.country = c.name
 on conflict (country_id, name) do nothing;
+
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to anon, authenticated;
+alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated;

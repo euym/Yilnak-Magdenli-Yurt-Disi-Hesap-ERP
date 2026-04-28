@@ -200,6 +200,7 @@ function App() {
                   <Select label="Sefer Bitiş Ülkesi" value={trip.end_country_id} onChange={v => setField('end_country_id', v)} options={defs.countries} textKey="name" />
                   <Select label="Sefer Bitiş Şehri" value={trip.end_city_id} onChange={v => setField('end_city_id', v)} options={citiesFor(trip.end_country_id)} textKey="name" />
                   <Input type="number" placeholder="Toplam Sefer Sayısı" value={trip.trip_count} onChange={v => setField('trip_count', v)} />
+                  <div className="emptyCell"></div>
                   <Input type="number" placeholder="Başlangıç KM" value={trip.start_km} onChange={v => setField('start_km', v)} />
                   <Input type="number" placeholder="Bitiş KM" value={trip.end_km} onChange={v => setField('end_km', v)} />
                   <ReadOnly label="Sefer KM" value={tripKm.toLocaleString('tr-TR')} />
@@ -265,19 +266,24 @@ function Definitions({ defs, reload, request }) {
 
   async function add(e) {
     e.preventDefault();
-    let payload = {};
-    if (tab === 'projects') payload = { name: form.name };
-    if (tab === 'drivers') payload = { name: form.name };
-    if (tab === 'tractors') payload = { plate: form.plate, info: form.info };
-    if (tab === 'trailers') payload = { plate: form.plate, info: form.info };
-    if (tab === 'escorts') payload = { name: form.name };
-    if (tab === 'escortVehicles') payload = { plate: form.plate, info: form.info };
-    if (tab === 'countries') payload = { name: form.name };
-    if (tab === 'cities') payload = { country_id: form.country_id, name: form.name };
+    try {
+      let payload = {};
+      if (tab === 'projects') payload = { name: form.name };
+      if (tab === 'drivers') payload = { name: form.name };
+      if (tab === 'tractors') payload = { plate: form.plate, info: form.info };
+      if (tab === 'trailers') payload = { plate: form.plate, info: form.info };
+      if (tab === 'escorts') payload = { name: form.name };
+      if (tab === 'escortVehicles') payload = { plate: form.plate, info: form.info };
+      if (tab === 'countries') payload = { name: form.name };
+      if (tab === 'cities') payload = { country_id: form.country_id, name: form.name };
 
-    await request('/definitions/' + tab, { method: 'POST', body: JSON.stringify(payload) });
-    setForm({});
-    await reload();
+      await request('/definitions/' + tab, { method: 'POST', body: JSON.stringify(payload) });
+      setForm({});
+      await reload();
+      alert('Eklendi');
+    } catch (err) {
+      alert('Eklenemedi: ' + err.message);
+    }
   }
 
   async function remove(id) {

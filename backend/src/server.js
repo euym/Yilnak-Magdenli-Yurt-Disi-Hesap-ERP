@@ -23,21 +23,28 @@ const tableMap = {
   cities: 'erp_cities'
 };
 
+function cleanPayload(kind, payload) {
+  if (['projects', 'drivers', 'escorts', 'countries'].includes(kind)) {
+    return { name: String(payload.name || '').trim() };
+  }
+  if (['tractors', 'trailers', 'escortVehicles'].includes(kind)) {
+    return {
+      plate: String(payload.plate || '').trim().toUpperCase(),
+      info: String(payload.info || '').trim() || null
+    };
+  }
+  if (kind === 'cities') {
+    return { country_id: payload.country_id, name: String(payload.name || '').trim() };
+  }
+  return payload;
+}
+
 app.get('/', (_, res) => res.json(ok({ name: 'Yılnak & Mağdenli ERP API', status: 'running' })));
 app.get('/health', (_, res) => res.json(ok({ status: 'running' })));
 
 app.get('/definitions', async (_, res) => {
   try {
-    const [
-      projects,
-      drivers,
-      tractors,
-      trailers,
-      escorts,
-      escortVehicles,
-      countries,
-      cities
-    ] = await Promise.all([
+    const q = await Promise.all([
       supabase.from('erp_projects').select('*').order('name'),
       supabase.from('erp_drivers').select('*').order('name'),
       supabase.from('erp_tractors').select('*').order('plate'),
@@ -47,19 +54,17 @@ app.get('/definitions', async (_, res) => {
       supabase.from('erp_countries').select('*').order('name'),
       supabase.from('erp_cities').select('*').order('name')
     ]);
-
-    const err = [projects, drivers, tractors, trailers, escorts, escortVehicles, countries, cities].find(x => x.error);
+    const err = q.find(x => x.error);
     if (err) return fail(res, 400, err.error.message);
-
     res.json(ok({
-      projects: projects.data || [],
-      drivers: drivers.data || [],
-      tractors: tractors.data || [],
-      trailers: trailers.data || [],
-      escorts: escorts.data || [],
-      escortVehicles: escortVehicles.data || [],
-      countries: countries.data || [],
-      cities: cities.data || []
+      projects: q[0].data || [],
+      drivers: q[1].data || [],
+      tractors: q[2].data || [],
+      trailers: q[3].data || [],
+      escorts: q[4].data || [],
+      escortVehicles: q[5].data || [],
+      countries: q[6].data || [],
+      cities: q[7].data || []
     }));
   } catch (e) {
     fail(res, 500, e.message);
@@ -67,10 +72,15 @@ app.get('/definitions', async (_, res) => {
 });
 
 app.post('/definitions/:kind', async (req, res) => {
-  const table = tableMap[req.params.kind];
+  const kind = req.params.kind;
+  const table = tableMap[kind];
   if (!table) return fail(res, 404, 'Tanım türü bulunamadı.');
 
-  const payload = req.body || {};
+  const payload = cleanPayload(kind, req.body || {});
+  if (['projects', 'drivers', 'escorts', 'countries'].includes(kind) && !payload.name) return fail(res, 422, 'Ad alanı zorunlu.');
+  if (['tractors', 'trailers', 'escortVehicles'].includes(kind) && !payload.plate) return fail(res, 422, 'Plaka alanı zorunlu.');
+  if (kind === 'cities' && (!payload.country_id || !payload.name)) return fail(res, 422, 'Şehir için ülke ve şehir adı zorunlu.');
+
   const { data, error } = await supabase.from(table).insert(payload).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
@@ -79,7 +89,6 @@ app.post('/definitions/:kind', async (req, res) => {
 app.delete('/definitions/:kind/:id', async (req, res) => {
   const table = tableMap[req.params.kind];
   if (!table) return fail(res, 404, 'Tanım türü bulunamadı.');
-
   const { error } = await supabase.from(table).delete().eq('id', req.params.id);
   if (error) return fail(res, 400, error.message);
   res.json(ok({ deleted: true }));
@@ -92,8 +101,7 @@ app.get('/trips', async (_, res) => {
 });
 
 app.post('/trips', async (req, res) => {
-  const body = req.body || {};
-  const { data, error } = await supabase.from('erp_trips').insert(body).select().single();
+  const { data, error } = await supabase.from('erp_trips').insert(req.body || {}).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
 });
