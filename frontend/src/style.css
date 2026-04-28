@@ -1,0 +1,37 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #eef2f7; color: #071a33; }
+.page { padding: 18px; }
+.hero { background: #102f4b; color: white; padding: 26px; border-radius: 0 0 18px 18px; margin-bottom: 18px; }
+.hero h1 { margin: 0 0 8px; font-size: 30px; }
+.hero p { margin: 0; opacity: .9; }
+.topActions { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+button { border: none; border-radius: 14px; padding: 12px 18px; cursor: pointer; background: #e7edf5; font-size: 15px; }
+button.active { background: #d9e9ff; color: #0d57b7; font-weight: 700; }
+.primary { background: #2674e8; color: white; font-weight: 700; margin-top: 14px; }
+.layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; }
+.card, .sideCard { background: white; border-radius: 18px; padding: 22px; box-shadow: 0 8px 24px rgba(13, 45, 80, .08); }
+.sideCard { min-height: 250px; }
+h2 { margin: 0 0 20px; font-size: 26px; }
+h3 { margin: 22px 0 12px; font-size: 22px; }
+section:first-of-type h3 { margin-top: 0; }
+.grid.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+input, select { width: 100%; border: 1px solid #c9d6e6; border-radius: 14px; padding: 15px 14px; font-size: 16px; background: white; min-height: 50px; }
+input:focus, select:focus { outline: 2px solid #b9d6ff; border-color: #2674e8; }
+.readonly { min-height: 50px; padding: 6px 0; color: #36557b; }
+.readonly span { display: block; font-size: 16px; margin-bottom: 4px; }
+.readonly b { display: block; color: #001b3d; font-size: 20px; }
+.message { background: #fff8df; border: 1px solid #f3df91; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+.tripItem { border-bottom: 1px solid #e6ecf3; padding: 10px 0; }
+.tripItem span { display: block; color: #667085; margin-top: 4px; }
+.defTabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.definitionForm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.definitionForm .primary { margin-top: 0; }
+.definitionList div { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e6ecf3; padding: 10px 0; }
+.definitionList button { background: #ffe8e8; color: #b42318; padding: 8px 12px; }
+.center { text-align: center; max-width: 600px; margin: 40px auto; }
+
+@media (max-width: 900px) {
+  .layout, .grid.two, .definitionForm { grid-template-columns: 1fr; }
+  .page { padding: 10px; }
+  .hero h1 { font-size: 24px; }
+}
