@@ -313,3 +313,66 @@ th { background: #f7fbff; color: #102f4b; }
     grid-template-columns: 1fr;
   }
 }
+
+
+.expenseSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  gap: 16px;
+}
+.expenseSummaryBox {
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.expenseSummaryBox h3 {
+  margin: 0;
+  padding: 12px 14px;
+  background: #fff7c2;
+  color: #e11d48;
+  border-bottom: 1px solid #dbe3ee;
+  text-align: center;
+}
+.expenseSummaryBox.fuel h3 {
+  background: #fff3c4;
+}
+.expenseSummaryBox.escort h3 {
+  background: #d9f3ff;
+}
+.expenseSummaryBox.cost h3 {
+  background: #d7fbe8;
+}
+.summaryRows {
+  display: grid;
+}
+.summaryRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #edf2f7;
+  align-items: center;
+}
+.summaryRow:last-child {
+  border-bottom: 0;
+}
+.summaryRow span {
+  color: #334155;
+  font-size: 13px;
+}
+.summaryRow b {
+  text-align: right;
+  font-size: 13px;
+}
+.summaryRow.highlight {
+  background: #fffaf0;
+}
+.summaryRow.highlight b {
+  color: #c2410c;
+}
+@media (max-width: 1000px) {
+  .expenseSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+}

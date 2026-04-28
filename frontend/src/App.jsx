@@ -223,6 +223,7 @@ function App() {
         <button className={screen === 'trip' ? 'active' : ''} onClick={() => setScreen('trip')}>Sefer Bilgileri</button>
         <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
         <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
+        <button className={screen === 'expenseSummary' ? 'active' : ''} onClick={() => setScreen('expenseSummary')}>Masraf Özeti</button>
         <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
         <button className={screen === 'allowances' ? 'active' : ''} onClick={() => setScreen('allowances')}>Harcırah</button>
       </div>
@@ -376,6 +377,228 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
 }
 
 
+
+
+
+function normalizeText(value) {
+  return String(value || '').toLocaleLowerCase('tr-TR');
+}
+
+function isNameLike(item, words) {
+  const text = normalizeText([item.expense_name, item.category, item.note].join(' '));
+  return words.some(w => text.includes(normalizeText(w)));
+}
+
+function isFuelExpense(item) {
+  return normalizeText(item.category) === 'yakıt' || isNameLike(item, ['mazot', 'yakıt', 'fuel', 'diesel']);
+}
+
+function isTollExpense(item) {
+  return isNameLike(item, ['otoban', 'otoyol', 'karayolu', 'geçiş', 'toll', 'ücretli']);
+}
+
+function isRoadDocExpense(item) {
+  return isNameLike(item, ['yol belge', 'belge', 'permit', 'izin']);
+}
+
+function isScaleCustomsExpense(item) {
+  return isNameLike(item, ['kantar', 'gümrük', 'tescil']);
+}
+
+function isOtherExpense(item) {
+  return !isFuelExpense(item) && !isTollExpense(item) && !isRoadDocExpense(item) && !isScaleCustomsExpense(item);
+}
+
+function vehicleGroup(item) {
+  const text = normalizeText(item.vehicle_type || item.note || '');
+  if (text.includes('öncü') || text.includes('oncu')) return 'escort';
+  return 'tractor';
+}
+
+function regionGroup(item) {
+  const country = normalizeText(item.country_name || item.country || '');
+  if (!country) return 'unknown';
+  return country.includes('türkiye') || country.includes('turkiye') || country.includes('tr') ? 'domestic' : 'abroad';
+}
+
+function currencyOf(item) {
+  return String(item.currency || 'TRY').toUpperCase();
+}
+
+function sumAmount(items, currency = null) {
+  return items
+    .filter(x => !currency || currencyOf(x) === currency)
+    .reduce((s, x) => s + numberValue(x.amount), 0);
+}
+
+function sumLiter(items) {
+  return items.reduce((s, x) => s + numberValue(x.liter), 0);
+}
+
+function formatMoney(value, currency) {
+  return `${numberValue(value).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+}
+
+function formatNumber(value, digits = 2) {
+  return numberValue(value).toLocaleString('tr-TR', { maximumFractionDigits: digits });
+}
+
+function ExpenseSummaryRow({ label, value, highlight }) {
+  return <div className={highlight ? 'summaryRow highlight' : 'summaryRow'}><span>{label}</span><b>{value}</b></div>;
+}
+
+function SummaryBox({ title, children, tone = '' }) {
+  return <section className={`expenseSummaryBox ${tone}`}>
+    <h3>{title}</h3>
+    <div className="summaryRows">{children}</div>
+  </section>;
+}
+
+function ExpenseSummaryScreen({ defs, trips, expenses }) {
+  const [selectedTripId, setSelectedTripId] = useState('');
+  const selectedTrip = trips.find(t => t.id === selectedTripId) || null;
+  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : expenses;
+
+  const totalTripKm = numberValue(selectedTrip?.total_trip_km);
+  const fuel = tripExpenses.filter(isFuelExpense);
+  const tractorFuel = fuel.filter(x => vehicleGroup(x) === 'tractor');
+  const escortFuel = fuel.filter(x => vehicleGroup(x) === 'escort');
+
+  const emptyTractorFuel = tractorFuel.filter(x => x.fuel_status === 'Boş');
+  const loadedTractorFuel = tractorFuel.filter(x => x.fuel_status === 'Dolu');
+
+  const domesticFuel = fuel.filter(x => regionGroup(x) === 'domestic');
+  const abroadFuel = fuel.filter(x => regionGroup(x) === 'abroad');
+
+  const tractorFuelLiters = sumLiter(tractorFuel);
+  const escortFuelLiters = sumLiter(escortFuel);
+  const totalFuelLiters = sumLiter(fuel);
+  const fuelPercent = totalTripKm > 0 ? (totalFuelLiters / totalTripKm) * 100 : 0;
+  const emptyFuelPercent = tractorFuelLiters > 0 ? (sumLiter(emptyTractorFuel) / tractorFuelLiters) * 100 : 0;
+  const loadedFuelPercent = tractorFuelLiters > 0 ? (sumLiter(loadedTractorFuel) / tractorFuelLiters) * 100 : 0;
+
+  const tolls = tripExpenses.filter(isTollExpense);
+  const tractorTolls = tolls.filter(x => vehicleGroup(x) === 'tractor');
+  const escortTolls = tolls.filter(x => vehicleGroup(x) === 'escort');
+
+  const roadDocs = tripExpenses.filter(isRoadDocExpense);
+  const scaleCustoms = tripExpenses.filter(isScaleCustomsExpense);
+  const others = tripExpenses.filter(isOtherExpense);
+
+  const currencies = Array.from(new Set(['TRY', 'EUR', 'USD', ...tripExpenses.map(currencyOf)]));
+
+  function totalsByCurrency(items) {
+    return currencies
+      .map(c => ({ currency: c, amount: sumAmount(items, c) }))
+      .filter(x => x.amount > 0);
+  }
+
+  function TotalRows({ items, labelPrefix = 'Toplam' }) {
+    const rows = totalsByCurrency(items);
+    if (!rows.length) return <ExpenseSummaryRow label={labelPrefix} value="0" />;
+    return rows.map(row => <ExpenseSummaryRow key={row.currency} label={`${labelPrefix} ${row.currency}`} value={formatMoney(row.amount, row.currency)} highlight />);
+  }
+
+  return <div className="layout">
+    <aside className="sideCard">
+      <h3>Masraf Özeti</h3>
+      <Select label="Sefer seç" value={selectedTripId} onChange={setSelectedTripId} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+      <div className="summaryGrid">
+        <div><span>Toplam Sefer KM</span><b>{totalTripKm.toLocaleString('tr-TR')}</b></div>
+        <div><span>Toplam Yakıt LT</span><b>{formatNumber(totalFuelLiters)}</b></div>
+        <div><span>Yakıt Ortalama (%)</span><b>{fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%</b></div>
+        <div><span>Kayıt Sayısı</span><b>{tripExpenses.length}</b></div>
+      </div>
+      <p className="hint">Bu ekranda veri girişi yoktur. Tüm bilgiler Masraf Girişi kayıtlarından otomatik hesaplanır.</p>
+      <p className="hint">Yakıt yüzdesi: Toplam Yakıt Litre / Toplam Sefer KM x 100.</p>
+    </aside>
+
+    <main className="card">
+      <div className="screenHeader">
+        <div>
+          <h2>Masraf Özeti</h2>
+          <p>Yakıt, ücretli karayolu, yol belgesi ve diğer masraf kalemleri otomatik gruplanır.</p>
+        </div>
+      </div>
+
+      {!selectedTrip && <div className="message">Masraf özetini görmek için sefer seçiniz.</div>}
+
+      {selectedTrip && <>
+        <div className="expenseSummaryGrid">
+          <SummaryBox title="Çekici Yakıt" tone="fuel">
+            <ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(emptyTractorFuel.filter(x => regionGroup(x) === 'domestic')))} />
+            <ExpenseSummaryRow label="Boş Yurt İçi Yakıt" value={totalsByCurrency(emptyTractorFuel.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(emptyTractorFuel.filter(x => regionGroup(x) === 'abroad')))} />
+            <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt" value={totalsByCurrency(emptyTractorFuel.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyTractorFuel))} highlight />
+            <ExpenseSummaryRow label="Boş Yakıt (%)" value={`${emptyFuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(loadedTractorFuel.filter(x => regionGroup(x) === 'domestic')))} />
+            <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt" value={totalsByCurrency(loadedTractorFuel.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(loadedTractorFuel.filter(x => regionGroup(x) === 'abroad')))} />
+            <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt" value={totalsByCurrency(loadedTractorFuel.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedTractorFuel))} highlight />
+            <ExpenseSummaryRow label="Dolu Yakıt (%)" value={`${loadedFuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            <ExpenseSummaryRow label="Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            <TotalRows items={tractorFuel} labelPrefix="Çekici Yakıt Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Öncü Yakıt" tone="escort">
+            <ExpenseSummaryRow label="Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(escortFuel.filter(x => regionGroup(x) === 'domestic')))} />
+            <ExpenseSummaryRow label="Yurt İçi Yakıt" value={totalsByCurrency(escortFuel.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(escortFuel.filter(x => regionGroup(x) === 'abroad')))} />
+            <ExpenseSummaryRow label="Yurt Dışı Yakıt" value={totalsByCurrency(escortFuel.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yakıt Toplam (lt)" value={formatNumber(escortFuelLiters)} highlight />
+            <TotalRows items={escortFuel} labelPrefix="Öncü Yakıt Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Yakıt Maliyet" tone="cost">
+            <ExpenseSummaryRow label="Yurt İçi Yakıt" value={totalsByCurrency(domesticFuel).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı Yakıt" value={totalsByCurrency(abroadFuel).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Toplam Yakıt (lt)" value={formatNumber(totalFuelLiters)} highlight />
+            <ExpenseSummaryRow label="Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            <TotalRows items={fuel} labelPrefix="Yakıt Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Çekici Ücretli Karayolu">
+            <ExpenseSummaryRow label="Yurt İçi Otoyolu Geçiş" value={totalsByCurrency(tractorTolls.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı Otoyolu Geçiş" value={totalsByCurrency(tractorTolls.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <TotalRows items={tractorTolls} labelPrefix="Çekici Otoyol Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Öncü Ücretli Karayolu" tone="escort">
+            <ExpenseSummaryRow label="Yurt İçi Otoyolu Geçiş" value={totalsByCurrency(escortTolls.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı Otoyolu Geçiş" value={totalsByCurrency(escortTolls.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <TotalRows items={escortTolls} labelPrefix="Öncü Otoyol Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Toplam Ücretli Karayolu">
+            <ExpenseSummaryRow label="Yurt İçi Otoyolu Geçiş" value={totalsByCurrency(tolls.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı Otoyolu Geçiş" value={totalsByCurrency(tolls.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <TotalRows items={tolls} labelPrefix="Otoyol Geçiş Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Yol Belgesi">
+            <ExpenseSummaryRow label="Yurt İçi Yol Belgesi" value={totalsByCurrency(roadDocs.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı Yol Belgesi" value={totalsByCurrency(roadDocs.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <TotalRows items={roadDocs} labelPrefix="Yol Belgesi Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Gümrük / Tescil / Kantar" tone="escort">
+            <ExpenseSummaryRow label="Yurt İçi" value={totalsByCurrency(scaleCustoms.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı" value={totalsByCurrency(scaleCustoms.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <TotalRows items={scaleCustoms} labelPrefix="Toplam" />
+          </SummaryBox>
+
+          <SummaryBox title="Diğer / Fişsiz">
+            <ExpenseSummaryRow label="Yurt İçi" value={totalsByCurrency(others.filter(x => regionGroup(x) === 'domestic')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <ExpenseSummaryRow label="Yurt Dışı" value={totalsByCurrency(others.filter(x => regionGroup(x) === 'abroad')).map(x => formatMoney(x.amount, x.currency)).join(' / ') || '0'} />
+            <TotalRows items={others} labelPrefix="Diğer Toplam" />
+          </SummaryBox>
+        </div>
+      </>}
+    </main>
+  </div>;
+}
 
 
 function moneyByCurrency(items, amountKey = 'amount', currencyKey = 'currency') {
