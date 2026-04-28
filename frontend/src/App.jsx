@@ -562,6 +562,13 @@ function ExpenseSummaryRow({ label, value, highlight }) {
   return <div className={highlight ? 'summaryRow highlight' : 'summaryRow'}><span>{label}</span><b>{value}</b></div>;
 }
 
+function FuelMiniCard({ title, tone = '', children }) {
+  return <section className={`fuelMiniCard ${tone}`}>
+    <h4>{title}</h4>
+    <div className="summaryRows">{children}</div>
+  </section>;
+}
+
 function SummaryBox({ title, children, tone = '' }) {
   return <section className={`expenseSummaryBox ${tone}`}>
     <h3>{title}</h3>
@@ -583,6 +590,14 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const escortFuel = fuel.filter(x => vehicleGroup(x) === 'escort');
   const emptyFuel = tractorFuel.filter(x => x.fuel_status === 'Boş');
   const loadedFuel = tractorFuel.filter(x => x.fuel_status === 'Dolu');
+  const emptyDomesticFuel = emptyFuel.filter(x => regionGroup(x) === 'domestic');
+  const emptyAbroadFuel = emptyFuel.filter(x => regionGroup(x) === 'abroad');
+  const loadedDomesticFuel = loadedFuel.filter(x => regionGroup(x) === 'domestic');
+  const loadedAbroadFuel = loadedFuel.filter(x => regionGroup(x) === 'abroad');
+  const escortDomesticFuel = escortFuel.filter(x => regionGroup(x) === 'domestic');
+  const escortAbroadFuel = escortFuel.filter(x => regionGroup(x) === 'abroad');
+  const domesticFuel = fuel.filter(x => regionGroup(x) === 'domestic');
+  const abroadFuel = fuel.filter(x => regionGroup(x) === 'abroad');
 
   const tolls = tripExpenses.filter(isTollExpense);
   const roadDocs = tripExpenses.filter(isRoadDocExpense);
@@ -590,6 +605,9 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
 
   const currencies = Array.from(new Set(['TRY', 'EUR', 'USD', ...tripExpenses.map(currencyOf)]));
   const totalFuelLiters = sumLiter(fuel);
+  const totalTractorLiters = sumLiter(tractorFuel);
+  const emptyFuelPercent = totalTractorLiters > 0 ? (sumLiter(emptyFuel) / totalTractorLiters) * 100 : 0;
+  const loadedFuelPercent = totalTractorLiters > 0 ? (sumLiter(loadedFuel) / totalTractorLiters) * 100 : 0;
   const fuelPercent = totalTripKm > 0 ? (totalFuelLiters / totalTripKm) * 100 : 0;
 
   function totalsByCurrency(items) {
@@ -632,16 +650,47 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
       {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar 0 değerlerle gösteriliyor.</div>}
 
       <div className="cleanSummaryGrid">
-        <section className="cleanSummaryCard">
+        <section className="cleanSummaryCard fuelOverviewCard wide">
           <h3>Yakıt Özeti</h3>
-          <div className="summaryRows">
-            <ExpenseSummaryRow label="Çekici Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} />
-            <ExpenseSummaryRow label="Çekici Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} />
-            <ExpenseSummaryRow label="Çekici Yakıt Toplam (lt)" value={formatNumber(sumLiter(tractorFuel))} highlight />
-            <ExpenseSummaryRow label="Öncü Yakıt Toplam (lt)" value={formatNumber(sumLiter(escortFuel))} highlight />
-            <ExpenseSummaryRow label="Toplam Yakıt (lt)" value={formatNumber(totalFuelLiters)} highlight />
-            <ExpenseSummaryRow label="Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
-            <ExpenseSummaryRow label="Yakıt Tutar Toplamı" value={moneyList(fuel)} highlight />
+          <div className="fuelFourGrid">
+            <FuelMiniCard title="1. Çekici Yakıt" tone="tractor">
+              <ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(emptyDomesticFuel))} />
+              <ExpenseSummaryRow label="Boş Yurt İçi Yakıt Tutarı" value={moneyList(emptyDomesticFuel)} />
+              <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(emptyAbroadFuel))} />
+              <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt Tutarı" value={moneyList(emptyAbroadFuel)} />
+              <ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} highlight />
+              <ExpenseSummaryRow label="Toplam Boş Yakıt Tutarı" value={moneyList(emptyFuel)} highlight />
+              <ExpenseSummaryRow label="Boş Yakıt (%)" value={`${emptyFuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+              <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(loadedDomesticFuel))} />
+              <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt Tutarı" value={moneyList(loadedDomesticFuel)} />
+              <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(loadedAbroadFuel))} />
+              <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt Tutarı" value={moneyList(loadedAbroadFuel)} />
+              <ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} highlight />
+              <ExpenseSummaryRow label="Toplam Dolu Yakıt Tutarı" value={moneyList(loadedFuel)} highlight />
+              <ExpenseSummaryRow label="Dolu Yakıt (%)" value={`${loadedFuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            </FuelMiniCard>
+
+            <FuelMiniCard title="2. Öncü Yakıt" tone="escort">
+              <ExpenseSummaryRow label="Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(escortDomesticFuel))} />
+              <ExpenseSummaryRow label="Yurt İçi Yakıt Tutarı" value={moneyList(escortDomesticFuel)} />
+              <ExpenseSummaryRow label="Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(escortAbroadFuel))} />
+              <ExpenseSummaryRow label="Yurt Dışı Yakıt Tutarı" value={moneyList(escortAbroadFuel)} />
+              <ExpenseSummaryRow label="Öncü Yakıt Toplamı" value={moneyList(escortFuel)} highlight />
+            </FuelMiniCard>
+
+            <FuelMiniCard title="3. Yakıt Maliyet" tone="cost">
+              <ExpenseSummaryRow label="Yurt İçi Yakıt Toplamı" value={moneyList(domesticFuel)} />
+              <ExpenseSummaryRow label="Yurt Dışı Yakıt Toplamı" value={moneyList(abroadFuel)} />
+              <ExpenseSummaryRow label="Yakıt Genel Toplamı" value={moneyList(fuel)} highlight />
+            </FuelMiniCard>
+
+            <FuelMiniCard title="4. Genel Yakıt Özeti" tone="general">
+              <ExpenseSummaryRow label="Çekici Yakıt Toplamı" value={moneyList(tractorFuel)} />
+              <ExpenseSummaryRow label="Öncü Yakıt Toplamı" value={moneyList(escortFuel)} />
+              <ExpenseSummaryRow label="Toplam Yakıt (lt)" value={formatNumber(totalFuelLiters)} />
+              <ExpenseSummaryRow label="Toplam Yakıt Tutarı" value={moneyList(fuel)} highlight />
+              <ExpenseSummaryRow label="Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            </FuelMiniCard>
           </div>
         </section>
 

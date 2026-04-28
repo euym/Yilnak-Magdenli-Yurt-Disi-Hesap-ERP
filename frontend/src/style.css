@@ -505,3 +505,67 @@ th { background: #f7fbff; color: #102f4b; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ERP Yakıt Özeti: Excel kopyası değil, 4 ana ERP kutusu mantığı */
+.fuelOverviewCard > h3 {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.fuelFourGrid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 14px;
+  padding: 14px;
+}
+.fuelMiniCard {
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.fuelMiniCard h4 {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 900;
+  border-bottom: 1px solid #e2e8f0;
+}
+.fuelMiniCard.tractor h4 {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.fuelMiniCard.escort h4 {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+.fuelMiniCard.cost h4 {
+  background: #ecfdf5;
+  color: #047857;
+}
+.fuelMiniCard.general h4 {
+  background: #fff7ed;
+  color: #c2410c;
+}
+.fuelMiniCard .summaryRow {
+  min-height: 38px;
+}
+.fuelMiniCard .summaryRow.highlight {
+  background: #f8fafc;
+}
+.fuelMiniCard.tractor .summaryRow.highlight b {
+  color: #1d4ed8;
+}
+.fuelMiniCard.escort .summaryRow.highlight b {
+  color: #6d28d9;
+}
+.fuelMiniCard.cost .summaryRow.highlight b {
+  color: #047857;
+}
+.fuelMiniCard.general .summaryRow.highlight b {
+  color: #c2410c;
+}
+@media (max-width: 1200px) {
+  .fuelFourGrid {
+    grid-template-columns: 1fr;
+  }
+}
