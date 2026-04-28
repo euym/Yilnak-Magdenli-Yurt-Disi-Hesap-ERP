@@ -146,3 +146,19 @@ insert into erp_expense_definitions(name, category, default_currency) values
 ('Vinç', 'Operasyon', 'TRY'),
 ('Eskort', 'Operasyon', 'EUR')
 on conflict (name) do nothing;
+
+
+create table if not exists erp_advances (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  trip_id uuid not null references erp_trips(id) on delete cascade,
+  receiver_type text not null,
+  receiver_name text not null,
+  amount numeric not null,
+  currency text not null default 'TRY',
+  advance_date date,
+  note text
+);
+
+alter table erp_advances disable row level security;
+grant select, insert, update, delete on erp_advances to anon, authenticated;

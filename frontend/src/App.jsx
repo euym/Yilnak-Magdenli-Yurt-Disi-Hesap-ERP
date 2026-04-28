@@ -17,6 +17,10 @@ const blankExpense = {
   amount: '', currency: '', expense_date: '', note: ''
 };
 
+const blankAdvance = {
+  trip_id: '', receiver_type: '', receiver_name: '', amount: '', currency: 'TRY', advance_date: '', note: ''
+};
+
 const defTabs = [
   ['expenseDefinitions', 'Masraf'],
   ['projects', 'Proje Adı'],
@@ -39,8 +43,10 @@ function App() {
   const [defs, setDefs] = useState(null);
   const [trips, setTrips] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [advances, setAdvances] = useState([]);
   const [trip, setTrip] = useState(blankTrip);
   const [expense, setExpense] = useState(blankExpense);
+  const [advance, setAdvance] = useState(blankAdvance);
   const [message, setMessage] = useState('');
 
   async function request(path, options = {}) {
@@ -51,12 +57,13 @@ function App() {
   }
 
   async function loadAll() {
-    const [definitions, tripList, expenseList] = await Promise.all([
-      request('/definitions'), request('/trips'), request('/expenses')
+    const [definitions, tripList, expenseList, advanceList] = await Promise.all([
+      request('/definitions'), request('/trips'), request('/expenses'), request('/advances')
     ]);
     setDefs(definitions);
     setTrips(tripList);
     setExpenses(expenseList);
+    setAdvances(advanceList);
   }
 
   useEffect(() => {
@@ -110,17 +117,19 @@ function App() {
     <div className="page">
       <header className="hero">
         <h1>Yılnak &amp; Mağdenli Yurt Dışı Hesap ERP Yazılımı</h1>
-        <p>Sefer bilgi girişi, tanımlar ve masraf girişi.</p>
+        <p>Sefer bilgi girişi, tanımlar, masraf ve avans girişi.</p>
       </header>
       <div className="topActions">
         <button className={screen === 'trip' ? 'active' : ''} onClick={() => setScreen('trip')}>Sefer Bilgileri</button>
         <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
         <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
+        <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
       </div>
       {message && <div className="message">{message}</div>}
       {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} citiesFor={citiesFor} />}
       {screen === 'definitions' && <Definitions defs={defs} reload={loadAll} request={request} />}
       {screen === 'expenses' && <ExpenseScreen defs={defs} trips={trips} expenses={expenses} expense={expense} setExpense={setExpense} request={request} reload={loadAll} />}
+      {screen === 'advances' && <AdvanceScreen trips={trips} advances={advances} expenses={expenses} advance={advance} setAdvance={setAdvance} request={request} reload={loadAll} />}
     </div>
   );
 }
@@ -244,6 +253,54 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
         <button className="primary" type="submit">Masraf Ekle</button>
       </form>
       <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Şehir</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.city_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
+    </main>
+  </div>;
+}
+
+
+function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request, reload }) {
+  const totalExpense = expenses.reduce((s, x) => s + numberValue(x.amount), 0);
+  const totalAdvance = advances.reduce((s, x) => s + numberValue(x.amount), 0);
+  const balance = totalAdvance - totalExpense;
+
+  function setAdvanceField(name, value) {
+    setAdvance(prev => ({ ...prev, [name]: value }));
+  }
+
+  async function saveAdvance(e) {
+    e.preventDefault();
+    if (!advance.trip_id) return alert('Sefer seçiniz.');
+    if (!advance.receiver_type) return alert('Avans alan tipini seçiniz.');
+    if (!advance.receiver_name) return alert('Avans alan kişi/adı giriniz.');
+    if (!advance.amount) return alert('Tutar giriniz.');
+    await request('/advances', { method: 'POST', body: JSON.stringify(advance) });
+    setAdvance({ ...blankAdvance, trip_id: advance.trip_id });
+    await reload();
+    alert('Avans eklendi');
+  }
+
+  return <div className="layout">
+    <aside className="sideCard"><h3>Avans / Masraf Özeti</h3><div className="summaryGrid">
+      <div><span>Toplam Masraf</span><b>{totalExpense.toLocaleString('tr-TR')}</b></div>
+      <div><span>Toplam Avans</span><b>{totalAdvance.toLocaleString('tr-TR')}</b></div>
+      <div><span>{balance >= 0 ? 'Şoförde Kalan' : 'Firmadan Alacak'}</span><b>{Math.abs(balance).toLocaleString('tr-TR')}</b></div>
+    </div></aside>
+    <main className="card"><h2>Avans Girişi</h2>
+      <form onSubmit={saveAdvance}>
+        <div className="grid two">
+          <Select label="Sefer seç" value={advance.trip_id} onChange={v => setAdvanceField('trip_id', v)} options={trips.map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+          <select required value={advance.receiver_type || ''} onChange={e => setAdvanceField('receiver_type', e.target.value)}>
+            <option value="">Avans alan tipi</option><option>Şoför</option><option>Öncü</option><option>Taşeron</option><option>Diğer</option>
+          </select>
+          <input required placeholder="Avans alan kişi / firma" value={advance.receiver_name || ''} onChange={e => setAdvanceField('receiver_name', e.target.value)} />
+          <input required type="number" step="0.01" placeholder="Tutar" value={advance.amount || ''} onChange={e => setAdvanceField('amount', e.target.value)} />
+          <select value={advance.currency || 'TRY'} onChange={e => setAdvanceField('currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
+          <input type="date" value={advance.advance_date || ''} onChange={e => setAdvanceField('advance_date', e.target.value)} />
+          <input placeholder="Açıklama" value={advance.note || ''} onChange={e => setAdvanceField('note', e.target.value)} />
+        </div>
+        <button className="primary" type="submit">Avans Ekle</button>
+      </form>
+      <h3>Girilen Avanslar</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{advances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || '-'}</td></tr>)}</tbody></table></div>
     </main>
   </div>;
 }

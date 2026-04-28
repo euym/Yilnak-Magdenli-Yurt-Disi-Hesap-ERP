@@ -90,6 +90,35 @@ app.post('/trips', async (req, res) => {
   res.json(ok(data));
 });
 
+app.get('/advances', async (_, res) => {
+  const { data, error } = await supabase
+    .from('erp_advances')
+    .select(`*, trip:erp_trips(project_name, created_at)`)
+    .order('created_at', { ascending: false });
+  if (error) return fail(res, 400, error.message);
+  res.json(ok((data || []).map(x => ({ ...x, trip_name: x.trip?.project_name || 'Projesiz Sefer' }))));
+});
+
+app.post('/advances', async (req, res) => {
+  const payload = req.body || {};
+  if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.');
+  if (!payload.receiver_type) return fail(res, 422, 'Avans alan tipi zorunlu.');
+  if (!payload.receiver_name) return fail(res, 422, 'Avans alan kişi/firma zorunlu.');
+  if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
+  const clean = {
+    trip_id: payload.trip_id,
+    receiver_type: payload.receiver_type,
+    receiver_name: String(payload.receiver_name || '').trim(),
+    amount: payload.amount,
+    currency: payload.currency || 'TRY',
+    advance_date: payload.advance_date || null,
+    note: payload.note || null
+  };
+  const { data, error } = await supabase.from('erp_advances').insert(clean).select().single();
+  if (error) return fail(res, 400, error.message);
+  res.json(ok(data));
+});
+
 app.get('/expenses', async (_, res) => {
   const { data, error } = await supabase
     .from('erp_expenses')
