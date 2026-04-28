@@ -16,6 +16,9 @@ alter table public.erp_trips add column if not exists abroad_exit_date date;
 alter table public.erp_trips add column if not exists domestic_work_days numeric default 0;
 alter table public.erp_trips add column if not exists abroad_work_days numeric default 0;
 
+alter table public.erp_trips add column if not exists escort_goes_abroad boolean default true;
+
+
 
 drop table if exists public.erp_allowances cascade;
 drop table if exists public.erp_allowance_definitions cascade;

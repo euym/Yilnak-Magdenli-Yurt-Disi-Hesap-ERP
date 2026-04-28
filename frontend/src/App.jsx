@@ -10,7 +10,7 @@ const blankTrip = {
   start_country_id: '', start_city_id: '', unloading_country_id: '', unloading_city_id: '', end_country_id: '', end_city_id: '',
   trip_count: 1, start_km: '', end_km: '',
   domestic_start_date: '', domestic_exit_date: '', domestic_return_date: '', domestic_end_date: '',
-  abroad_entry_date: '', abroad_exit_date: '',
+  abroad_entry_date: '', abroad_exit_date: '', escort_goes_abroad: true,
   domestic_work_days: 0, abroad_work_days: 0,
   driver_id: '', tractor_id: '', tractor_info_id: '', trailer_id: '', trailer_info_id: '',
   escort_id: '', escort_vehicle_id: '', escort_vehicle_info_id: ''
@@ -298,6 +298,7 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
             <LabeledDate label="Yurt İçi Sefer Bitiş" value={trip.domestic_end_date} onChange={v => setField('domestic_end_date', v)} />
             <LabeledDate label="Yurt Dışı Giriş" value={trip.abroad_entry_date} onChange={v => setField('abroad_entry_date', v)} />
             <LabeledDate label="Yurt Dışı Çıkış" value={trip.abroad_exit_date} onChange={v => setField('abroad_exit_date', v)} />
+            <label className="labeledField"><span>Öncü Yurt Dışına Çıkıyor mu?</span><select value={String(trip.escort_goes_abroad ?? true)} onChange={e => setField('escort_goes_abroad', e.target.value === 'true')}><option value="true">Evet</option><option value="false">Hayır</option></select></label>
             <ReadOnly label="Yurt İçi Çalışılan Gün" value={tripAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
             <ReadOnly label="Yurt Dışı Çalışılan Gün" value={tripAllowanceDays.abroadDays.toLocaleString('tr-TR')} />
           </div><p className="hint">Kural: Pazar günleri çift sayılır. Yurda giriş günü yurt içi harcırahına dahildir.</p></section>
@@ -496,8 +497,53 @@ function formatDateForInput(value) {
 }
 
 
+
+function AllowanceSummaryTable({ title, personName, dates, daily, currency, includeAbroad }) {
+  const days = calcAllowanceDaysFromDates(dates);
+  const domesticDays = includeAbroad ? days.domesticDays : baseDaysInclusive(dates.domestic_start_date, dates.domestic_end_date) + countSundaysInclusive(dates.domestic_start_date, dates.domestic_end_date);
+  const abroadDays = includeAbroad ? days.abroadDays : 0;
+  const domesticTotal = domesticDays * numberValue(daily.domestic);
+  const abroadTotal = abroadDays * numberValue(daily.abroad);
+
+  return <section className="erpSection allowanceInfoCard">
+    <div className="allowancePersonHeader">
+      <div>
+        <h3>{title}</h3>
+        <p>{personName || 'Tanımlı personel yok'}</p>
+      </div>
+      <div className={includeAbroad ? 'statusPill ok' : 'statusPill warn'}>{includeAbroad ? 'Yurt dışı dahil' : 'Yurt dışı yok'}</div>
+    </div>
+
+    <div className="allowanceInfoGrid">
+      <div className="allowanceInfoBlock">
+        <h4>Yurt İçi Tarihleri</h4>
+        <div className="infoRows">
+          <div><span>Yurt İçi Sefer Başlangıç</span><b>{dates.domestic_start_date || '-'}</b></div>
+          <div><span>Yurt İçi Çıkış</span><b>{dates.domestic_exit_date || '-'}</b></div>
+          <div><span>Yurt İçi Giriş</span><b>{dates.domestic_return_date || '-'}</b></div>
+          <div><span>Yurt İçi Sefer Bitiş</span><b>{dates.domestic_end_date || '-'}</b></div>
+          <div><span>Yurt İçi Geçen Gün</span><b>{domesticDays.toLocaleString('tr-TR')}</b></div>
+          <div><span>Günlük Harcırah</span><b>{numberValue(daily.domestic).toLocaleString('tr-TR')} {currency.domestic}</b></div>
+          <div className="totalRow"><span>Yurt İçi Harcırah</span><b>{domesticTotal.toLocaleString('tr-TR')} {currency.domestic}</b></div>
+        </div>
+      </div>
+
+      <div className="allowanceInfoBlock">
+        <h4>Yurt Dışı Tarihleri</h4>
+        <div className="infoRows">
+          <div><span>Yurt Dışı Giriş</span><b>{includeAbroad ? (dates.abroad_entry_date || '-') : '-'}</b></div>
+          <div><span>Yurt Dışı Çıkış</span><b>{includeAbroad ? (dates.abroad_exit_date || '-') : '-'}</b></div>
+          <div><span>Yurt Dışı Geçen Gün</span><b>{abroadDays.toLocaleString('tr-TR')}</b></div>
+          <div><span>Günlük Harcırah</span><b>{includeAbroad ? `${numberValue(daily.abroad).toLocaleString('tr-TR')} ${currency.abroad}` : `0 ${currency.abroad}`}</b></div>
+          <div className="totalRow"><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {currency.abroad}</b></div>
+        </div>
+      </div>
+    </div>
+  </section>;
+}
+
 function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, request, reload }) {
-  const safeDefs = defs || { allowanceDefinitions: [] };
+  const safeDefs = defs || { allowanceDefinitions: [], drivers: [], escorts: [] };
   const allowanceDefinitions = safeDefs.allowanceDefinitions || [];
   const activeAllowanceDef = allowanceDefinitions.find(x => x.is_active) || allowanceDefinitions[0] || null;
   const selectedTrip = (trips || []).find(t => t.id === allowance.trip_id) || null;
@@ -511,63 +557,57 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
     abroad_exit_date: formatDateForInput(selectedTrip?.abroad_exit_date)
   };
 
-  const domesticDailyAmount = allowance.domestic_daily_amount || activeAllowanceDef?.domestic_daily_amount || '';
-  const domesticCurrency = allowance.domestic_currency || activeAllowanceDef?.domestic_currency || 'TRY';
-  const abroadDailyAmount = allowance.abroad_daily_amount || activeAllowanceDef?.abroad_daily_amount || '';
-  const abroadCurrency = allowance.abroad_currency || activeAllowanceDef?.abroad_currency || 'EUR';
+  const daily = {
+    domestic: activeAllowanceDef?.domestic_daily_amount || 0,
+    abroad: activeAllowanceDef?.abroad_daily_amount || 0
+  };
 
-  const calculatedDays = calcAllowanceDaysFromDates(tripDates);
-  const domesticDays = calculatedDays.domesticDays;
-  const abroadDays = calculatedDays.abroadDays;
-  const domesticTotal = domesticDays * numberValue(domesticDailyAmount);
-  const abroadTotal = abroadDays * numberValue(abroadDailyAmount);
-  const selectedTripAllowances = allowance.trip_id ? (allowances || []).filter(x => x.trip_id === allowance.trip_id) : (allowances || []);
+  const currency = {
+    domestic: activeAllowanceDef?.domestic_currency || 'TRY',
+    abroad: activeAllowanceDef?.abroad_currency || 'EUR'
+  };
+
+  const tractorDriverName = safeDefs.drivers?.find(d => d.id === selectedTrip?.driver_id)?.name || '';
+  const escortDriverName = safeDefs.escorts?.find(e => e.id === selectedTrip?.escort_id)?.name || '';
+  const escortGoesAbroad = selectedTrip?.escort_goes_abroad !== false;
+
+  const tractorDays = calcAllowanceDaysFromDates(tripDates);
+  const tractorDomesticTotal = tractorDays.domesticDays * numberValue(daily.domestic);
+  const tractorAbroadTotal = tractorDays.abroadDays * numberValue(daily.abroad);
+
+  const escortDomesticDays = escortGoesAbroad
+    ? tractorDays.domesticDays
+    : baseDaysInclusive(tripDates.domestic_start_date, tripDates.domestic_end_date) + countSundaysInclusive(tripDates.domestic_start_date, tripDates.domestic_end_date);
+  const escortAbroadDays = escortGoesAbroad ? tractorDays.abroadDays : 0;
+  const escortDomesticTotal = escortDomesticDays * numberValue(daily.domestic);
+  const escortAbroadTotal = escortAbroadDays * numberValue(daily.abroad);
+
+  const totalsByCurrency = [
+    { currency: currency.domestic, label: 'Toplam Yurt İçi Harcırah', amount: tractorDomesticTotal + escortDomesticTotal },
+    { currency: currency.abroad, label: 'Toplam Yurt Dışı Harcırah', amount: tractorAbroadTotal + escortAbroadTotal }
+  ];
 
   function setAllowanceField(name, value) {
     setAllowance(prev => ({ ...prev, [name]: value }));
   }
 
-  async function saveAllowance(e) {
-    e.preventDefault();
-    if (!allowance.trip_id) return alert('Sefer seçiniz.');
-    if (!selectedTrip) return alert('Sefer bulunamadı.');
-    if (!tripDates.domestic_start_date || !tripDates.domestic_exit_date || !tripDates.domestic_return_date || !tripDates.domestic_end_date || !tripDates.abroad_entry_date || !tripDates.abroad_exit_date) {
-      return alert('Bu seferde harcırah tarihleri eksik. Lütfen Sefer Bilgileri > Sefer Tarihleri bölümünü doldurun.');
-    }
-    if (domesticDays <= 0) return alert('Yurt içi geçen gün 0 olamaz. Sefer tarihlerini kontrol edin.');
-    if (abroadDays <= 0) return alert('Yurt dışı geçen gün 0 olamaz. Sefer tarihlerini kontrol edin.');
-    if (!domesticDailyAmount || numberValue(domesticDailyAmount) <= 0) return alert('Yurt içi günlük harcırah tutarı giriniz.');
-    if (!abroadDailyAmount || numberValue(abroadDailyAmount) <= 0) return alert('Yurt dışı günlük harcırah tutarı giriniz.');
-
-    const payload = {
-      ...allowance,
-      ...tripDates,
-      domestic_days: domesticDays,
-      domestic_daily_amount: domesticDailyAmount,
-      domestic_currency: domesticCurrency,
-      domestic_total: domesticTotal,
-      abroad_days: abroadDays,
-      abroad_daily_amount: abroadDailyAmount,
-      abroad_currency: abroadCurrency,
-      abroad_total: abroadTotal
-    };
-
-    await request('/allowances', { method: 'POST', body: JSON.stringify(payload) });
-    setAllowance({ ...blankAllowance, trip_id: allowance.trip_id });
-    await reload();
-    alert('Harcırah kaydedildi');
-  }
-
   return <div className="layout">
     <aside className="sideCard">
-      <h3>Harcırah Özeti</h3>
+      <h3>Otomatik Harcırah Özeti</h3>
       <div className="summaryGrid">
-        <div><span>Yurt İçi Çalışılan Gün</span><b>{domesticDays}</b></div>
-        <div><span>Yurt İçi Harcırah</span><b>{domesticTotal.toLocaleString('tr-TR')} {domesticCurrency}</b></div>
-        <div><span>Yurt Dışı Çalışılan Gün</span><b>{abroadDays}</b></div>
-        <div><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {abroadCurrency}</b></div>
+        <div><span>Çekici Yurt İçi Gün</span><b>{tractorDays.domesticDays}</b></div>
+        <div><span>Çekici Yurt Dışı Gün</span><b>{tractorDays.abroadDays}</b></div>
+        <div><span>Öncü Yurt İçi Gün</span><b>{escortDomesticDays}</b></div>
+        <div><span>Öncü Yurt Dışı Gün</span><b>{escortAbroadDays}</b></div>
       </div>
-      <p className="hint">Tarihler Sefer Bilgileri ekranından gelir ve burada değiştirilemez.</p>
+      <div className="currencyBalanceList">
+        {totalsByCurrency.map(row => <div className="currencyBalance closed" key={row.label + row.currency}>
+          <div className="currencyHeader">{row.currency}</div>
+          <div><span>{row.label}</span><b>{row.amount.toLocaleString('tr-TR')} {row.currency}</b></div>
+        </div>)}
+      </div>
+      <p className="hint">Bu ekran bilgi ekranıdır. Harcırah tutarları ve günleri otomatik hesaplanır.</p>
+      <p className="hint">Günlük tutarlar Tanımlar &gt; Harcırah ekranından gelir.</p>
       <p className="hint">Pazar günleri çift sayılır.</p>
     </aside>
 
@@ -575,72 +615,39 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
       <div className="screenHeader">
         <div>
           <h2>Şoför Harcırah Hesabı</h2>
-          <p>Sefer tarihleri üzerinden yurt içi ve yurt dışı harcırah hesaplanır.</p>
+          <p>Çekici sürücüsü ve öncü sürücüsü ayrı hesaplanır. Manuel giriş yoktur.</p>
         </div>
       </div>
 
-      <form onSubmit={saveAllowance}>
-        <section className="erpSection">
-          <h3>Sefer Seçimi</h3>
-          <div className="grid two">
-            <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
-            <ReadOnly label="Seçili Sefer" value={selectedTrip?.project_name || '-'} />
-          </div>
-        </section>
+      <section className="erpSection">
+        <h3>Sefer Seçimi</h3>
+        <div className="grid two">
+          <Select label="Sefer seç" value={allowance.trip_id} onChange={v => setAllowanceField('trip_id', v)} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+          <ReadOnly label="Seçili Sefer" value={selectedTrip?.project_name || '-'} />
+        </div>
+      </section>
 
-        <section className="erpSection">
-          <h3>Yurt İçi Tarihleri</h3>
-          <div className="grid two">
-            <ReadOnly label="Yurt İçi Sefer Başlangıç" value={tripDates.domestic_start_date || '-'} />
-            <ReadOnly label="Yurt İçi Çıkış" value={tripDates.domestic_exit_date || '-'} />
-            <ReadOnly label="Yurt İçi Giriş" value={tripDates.domestic_return_date || '-'} />
-            <ReadOnly label="Yurt İçi Sefer Bitiş" value={tripDates.domestic_end_date || '-'} />
-            <ReadOnly label="Yurt İçi Geçen Gün" value={domesticDays.toLocaleString('tr-TR')} />
-          </div>
-        </section>
+      {!selectedTrip && <div className="message">Harcırahı görmek için sefer seçiniz.</div>}
 
-        <section className="erpSection">
-          <h3>Yurt İçi Harcırah</h3>
-          <div className="grid three">
-            <Input type="number" placeholder="Yurt içi günlük tutar" value={domesticDailyAmount} onChange={v => setAllowanceField('domestic_daily_amount', v)} />
-            <select value={domesticCurrency} onChange={e => setAllowanceField('domestic_currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
-            <ReadOnly label="Yurt İçi Harcırah" value={`${domesticTotal.toLocaleString('tr-TR')} ${domesticCurrency}`} />
-          </div>
-        </section>
+      {selectedTrip && <>
+        <AllowanceSummaryTable
+          title="Çekici Sürücüsü Harcırahı"
+          personName={tractorDriverName}
+          dates={tripDates}
+          daily={daily}
+          currency={currency}
+          includeAbroad={true}
+        />
 
-        <section className="erpSection">
-          <h3>Yurt Dışı Tarihleri</h3>
-          <div className="grid two">
-            <ReadOnly label="Yurt Dışı Giriş" value={tripDates.abroad_entry_date || '-'} />
-            <ReadOnly label="Yurt Dışı Çıkış" value={tripDates.abroad_exit_date || '-'} />
-            <ReadOnly label="Yurt Dışı Geçen Gün" value={abroadDays.toLocaleString('tr-TR')} />
-          </div>
-        </section>
-
-        <section className="erpSection">
-          <h3>Yurt Dışı Harcırah</h3>
-          <div className="grid three">
-            <Input type="number" placeholder="Yurt dışı günlük tutar" value={abroadDailyAmount} onChange={v => setAllowanceField('abroad_daily_amount', v)} />
-            <select value={abroadCurrency} onChange={e => setAllowanceField('abroad_currency', e.target.value)}><option>EUR</option><option>TRY</option><option>USD</option></select>
-            <ReadOnly label="Yurt Dışı Harcırah" value={`${abroadTotal.toLocaleString('tr-TR')} ${abroadCurrency}`} />
-          </div>
-        </section>
-
-        <section className="erpSection">
-          <h3>Açıklama</h3>
-          <input className="fullInput" placeholder="Açıklama" value={allowance.note || ''} onChange={e => setAllowanceField('note', e.target.value)} />
-        </section>
-
-        <button className="primary" type="submit">Harcırah Kaydet</button>
-      </form>
-
-      <h3>Kayıtlı Harcırahlar</h3>
-      <div className="tableWrap">
-        <table>
-          <thead><tr><th>Sefer</th><th>Yurt İçi Gün</th><th>Yurt İçi Toplam</th><th>Yurt Dışı Gün</th><th>Yurt Dışı Toplam</th><th>Not</th></tr></thead>
-          <tbody>{selectedTripAllowances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.domestic_days}</td><td>{x.domestic_total} {x.domestic_currency}</td><td>{x.abroad_days}</td><td>{x.abroad_total} {x.abroad_currency}</td><td>{x.note || '-'}</td></tr>)}</tbody>
-        </table>
-      </div>
+        <AllowanceSummaryTable
+          title="Öncü Sürücüsü Harcırahı"
+          personName={escortDriverName}
+          dates={tripDates}
+          daily={daily}
+          currency={currency}
+          includeAbroad={escortGoesAbroad}
+        />
+      </>}
     </main>
   </div>;
 }

@@ -231,3 +231,85 @@ th { background: #f7fbff; color: #102f4b; }
 .labeledField input:focus {
   outline: none;
 }
+
+
+.allowanceInfoCard {
+  background: #ffffff;
+}
+.allowancePersonHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.allowancePersonHeader h3 {
+  margin: 0 0 4px 0;
+}
+.allowancePersonHeader p {
+  margin: 0;
+  color: #64748b;
+}
+.statusPill {
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.statusPill.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+.statusPill.warn {
+  background: #ffedd5;
+  color: #9a3412;
+}
+.allowanceInfoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.allowanceInfoBlock {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+.allowanceInfoBlock h4 {
+  margin: 0;
+  padding: 12px 14px;
+  background: #eef2ff;
+  border-bottom: 1px solid #e2e8f0;
+}
+.infoRows {
+  display: grid;
+}
+.infoRows div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.infoRows div:last-child {
+  border-bottom: 0;
+}
+.infoRows span {
+  color: #475569;
+  font-size: 13px;
+}
+.infoRows b {
+  text-align: right;
+}
+.infoRows .totalRow {
+  background: #fff7ed;
+}
+.infoRows .totalRow b {
+  color: #c2410c;
+}
+@media (max-width: 900px) {
+  .allowanceInfoGrid {
+    grid-template-columns: 1fr;
+  }
+}
