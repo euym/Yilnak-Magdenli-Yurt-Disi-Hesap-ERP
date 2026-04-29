@@ -505,35 +505,54 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
 function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, reload }) {
   const selectedDef = defs.expenseDefinitions.find(x => x.id === expense.expense_definition_id);
   const isFuel = selectedDef?.category === 'Yakıt';
+  const needsFuelStatus = isFuel && expense.vehicle_type === 'Çekici';
+  const needsLiter = isFuel;
   const summary = expenses.reduce((acc, item) => {
     const amount = numberValue(item.amount); acc.total += amount;
-    if (item.category === 'Yakıt') { acc.fuel += amount; if (item.fuel_status === 'Boş') acc.emptyLiter += numberValue(item.liter); if (item.fuel_status === 'Dolu') acc.loadedLiter += numberValue(item.liter); }
+    if (item.category === 'Yakıt') {
+      acc.fuel += amount;
+      if (item.fuel_status === 'Boş') acc.emptyLiter += numberValue(item.liter);
+      if (item.fuel_status === 'Dolu') acc.loadedLiter += numberValue(item.liter);
+    }
     return acc;
   }, { total: 0, fuel: 0, emptyLiter: 0, loadedLiter: 0 });
 
   function setExpenseField(name, value) {
     setExpense(prev => {
       const next = { ...prev, [name]: value };
-      if (name === 'country_id') next.city_id = '';
       if (name === 'expense_definition_id') {
         const def = defs.expenseDefinitions.find(x => x.id === value);
         next.currency = def?.default_currency || next.currency || 'TRY';
         if (def?.category !== 'Yakıt') { next.fuel_status = ''; next.liter = ''; }
       }
+      if (name === 'vehicle_type' && value !== 'Çekici') next.fuel_status = '';
       return next;
     });
   }
 
   async function saveExpense(e) {
     e.preventDefault();
-    if (!expense.trip_id) return alert('Sefer seçiniz.');
-    if (!expense.expense_definition_id) return alert('Masraf türü seçiniz.');
-    if (isFuel && !expense.fuel_status) return alert('Yakıt için Boş/Dolu seçiniz.');
-    if (isFuel && !expense.liter) return alert('Yakıt için litre giriniz.');
-    await request('/expenses', { method: 'POST', body: JSON.stringify(expense) });
-    setExpense({ ...blankExpense, trip_id: expense.trip_id });
-    await reload();
-    alert('Masraf eklendi');
+    try {
+      if (!expense.trip_id) return alert('Sefer seçiniz.');
+      if (!expense.expense_definition_id) return alert('Masraf türü seçiniz.');
+      if (!expense.amount) return alert('Tutar giriniz.');
+      if (needsFuelStatus && !expense.fuel_status) return alert('Çekici yakıtı için Boş/Dolu seçiniz.');
+      if (needsLiter && !expense.liter) return alert('Yakıt için litre giriniz.');
+
+      const payload = cleanEmptyValues({
+        ...expense,
+        city_id: null,
+        fuel_status: needsFuelStatus ? expense.fuel_status : ''
+      });
+
+      await request('/expenses', { method: 'POST', body: JSON.stringify(payload) });
+      setExpense({ ...blankExpense, trip_id: expense.trip_id });
+      await reload();
+      alert('Masraf eklendi');
+    } catch (err) {
+      console.error(err);
+      alert('Masraf kaydedilemedi: ' + err.message);
+    }
   }
 
   return <div className="layout">
@@ -550,10 +569,19 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
           <Select label="Masraf türü" value={expense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={defs.expenseDefinitions} textKey="name" />
           <ReadOnly label="Kategori" value={selectedDef?.category || '-'} />
           <Select label="Ülke" value={expense.country_id} onChange={v => setExpenseField('country_id', v)} options={defs.countries} textKey="name" />
-          <Select label="Şehir" value={expense.city_id} onChange={v => setExpenseField('city_id', v)} options={defs.cities.filter(c => c.country_id === expense.country_id)} textKey="name" />
           <select value={expense.vehicle_type || ''} onChange={e => setExpenseField('vehicle_type', e.target.value)}><option value="">Araç tipi</option><option>Çekici</option><option>Öncü</option><option>Diğer</option></select>
         </div>
-        {isFuel && <div className="fuelBox"><b>Yakıt Durumu</b><label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Boş'} onChange={() => setExpenseField('fuel_status', 'Boş')} /> Boş</label><label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Dolu'} onChange={() => setExpenseField('fuel_status', 'Dolu')} /> Dolu</label><input type="number" step="0.01" placeholder="Litre" value={expense.liter || ''} onChange={e => setExpenseField('liter', e.target.value)} /></div>}
+
+        {isFuel && <div className="fuelBox">
+          {needsFuelStatus && <>
+            <b>Yakıt Durumu</b>
+            <label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Boş'} onChange={() => setExpenseField('fuel_status', 'Boş')} /> Boş</label>
+            <label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Dolu'} onChange={() => setExpenseField('fuel_status', 'Dolu')} /> Dolu</label>
+          </>}
+          {!needsFuelStatus && <b>Yakıt Durumu: Öncü / Diğer araç için Boş-Dolu seçilmez</b>}
+          <input type="number" step="0.01" placeholder="Litre" value={expense.liter || ''} onChange={e => setExpenseField('liter', e.target.value)} />
+        </div>}
+
         <div className="grid two expenseBottom">
           <input required type="number" step="0.01" placeholder="Tutar" value={expense.amount || ''} onChange={e => setExpenseField('amount', e.target.value)} />
           <select value={expense.currency || selectedDef?.default_currency || 'TRY'} onChange={e => setExpenseField('currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
@@ -562,7 +590,7 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
         </div>
         <button className="primary" type="submit">Masraf Ekle</button>
       </form>
-      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Şehir</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.city_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
     </main>
   </div>;
 }

@@ -301,7 +301,7 @@ app.post('/advances', async (req, res) => {
     amount: payload.amount,
     currency: payload.currency || 'TRY',
     advance_date: payload.advance_date || null,
-    description: payload.note || payload.description || null
+    note: payload.note || payload.description || null
   };
   const { data, error } = await supabase.from('erp_advances').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
@@ -324,7 +324,7 @@ app.post('/expenses', async (req, res) => {
   if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
   const { data: def, error: defError } = await supabase.from('erp_expense_definitions').select('category, default_currency').eq('id', payload.expense_definition_id).single();
   if (defError) return fail(res, 400, defError.message);
-  if (def.category === 'Yakıt' && !payload.fuel_status) return fail(res, 422, 'Yakıt için Boş/Dolu zorunlu.');
+  if (def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' && !payload.fuel_status) return fail(res, 422, 'Çekici yakıtı için Boş/Dolu zorunlu.');
   if (def.category === 'Yakıt' && !payload.liter) return fail(res, 422, 'Yakıt için litre zorunlu.');
   const clean = {
     trip_id: payload.trip_id,
@@ -332,12 +332,12 @@ app.post('/expenses', async (req, res) => {
     country_id: payload.country_id || null,
     city_id: payload.city_id || null,
     vehicle_type: payload.vehicle_type || null,
-    fuel_status: def.category === 'Yakıt' ? payload.fuel_status : null,
+    fuel_status: def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' ? payload.fuel_status : null,
     liter: def.category === 'Yakıt' ? payload.liter : null,
     amount: payload.amount,
     currency: payload.currency || def.default_currency || 'TRY',
     expense_date: payload.expense_date || null,
-    description: payload.note || payload.description || null
+    note: payload.note || payload.description || null
   };
   const { data, error } = await supabase.from('erp_expenses').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
