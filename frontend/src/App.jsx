@@ -503,6 +503,7 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
 }
 
 function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, reload }) {
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
   const selectedDef = defs.expenseDefinitions.find(x => x.id === expense.expense_definition_id);
   const isFuel = selectedDef?.category === 'Yakıt';
   const needsFuelStatus = isFuel && expense.vehicle_type === 'Çekici';
@@ -530,6 +531,42 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
     });
   }
 
+  function fillExpenseForm(row) {
+    setEditingExpenseId(row.id);
+    setExpense({
+      trip_id: row.trip_id || '',
+      expense_definition_id: row.expense_definition_id || '',
+      country_id: row.country_id || '',
+      city_id: row.city_id || '',
+      vehicle_type: row.vehicle_type || '',
+      fuel_status: row.fuel_status || '',
+      liter: row.liter ?? '',
+      amount: row.amount ?? '',
+      currency: row.currency || '',
+      expense_date: row.expense_date || '',
+      note: row.note || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelExpenseEdit() {
+    setEditingExpenseId(null);
+    setExpense({ ...blankExpense, trip_id: expense.trip_id });
+  }
+
+  async function deleteExpense(row) {
+    if (!confirm(`${row.expense_name || 'Masraf'} kaydı silinsin mi?`)) return;
+    try {
+      await request(`/expenses/${row.id}`, { method: 'DELETE' });
+      if (editingExpenseId === row.id) cancelExpenseEdit();
+      await reload();
+      alert('Masraf silindi');
+    } catch (err) {
+      console.error(err);
+      alert('Masraf silinemedi: ' + err.message);
+    }
+  }
+
   async function saveExpense(e) {
     e.preventDefault();
     try {
@@ -545,10 +582,13 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
         fuel_status: needsFuelStatus ? expense.fuel_status : ''
       });
 
-      await request('/expenses', { method: 'POST', body: JSON.stringify(payload) });
+      const path = editingExpenseId ? `/expenses/${editingExpenseId}` : '/expenses';
+      const method = editingExpenseId ? 'PUT' : 'POST';
+      await request(path, { method, body: JSON.stringify(payload) });
+      setEditingExpenseId(null);
       setExpense({ ...blankExpense, trip_id: expense.trip_id });
       await reload();
-      alert('Masraf eklendi');
+      alert(editingExpenseId ? 'Masraf güncellendi' : 'Masraf eklendi');
     } catch (err) {
       console.error(err);
       alert('Masraf kaydedilemedi: ' + err.message);
@@ -562,13 +602,14 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
       <div><span>Boş Litre</span><b>{summary.emptyLiter.toLocaleString('tr-TR')}</b></div>
       <div><span>Dolu Litre</span><b>{summary.loadedLiter.toLocaleString('tr-TR')}</b></div>
     </div></aside>
-    <main className="card"><h2>Masraf Girişi</h2>
+    <main className="card"><h2>{editingExpenseId ? 'Masraf Düzenle' : 'Masraf Girişi'}</h2>
+      {editingExpenseId && <p className="hint">Düzenleme modundasınız. Kaydettiğinizde seçili masraf güncellenir.</p>}
       <form onSubmit={saveExpense}>
         <div className="grid two">
           <Select label="Sefer seç" value={expense.trip_id} onChange={v => setExpenseField('trip_id', v)} options={trips.map(t => ({ ...t, label: `${t.project_name || 'Projesiz'} - ${new Date(t.created_at).toLocaleDateString('tr-TR')}` }))} textKey="label" />
-          <Select label="Masraf türü" value={expense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={defs.expenseDefinitions} textKey="name" />
-          <ReadOnly label="Kategori" value={selectedDef?.category || '-'} />
           <Select label="Ülke" value={expense.country_id} onChange={v => setExpenseField('country_id', v)} options={defs.countries} textKey="name" />
+          <ReadOnly label="Kategori" value={selectedDef?.category || '-'} />
+          <Select label="Masraf türü" value={expense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={defs.expenseDefinitions} textKey="name" />
           <select value={expense.vehicle_type || ''} onChange={e => setExpenseField('vehicle_type', e.target.value)}><option value="">Araç tipi</option><option>Çekici</option><option>Öncü</option><option>Diğer</option></select>
         </div>
 
@@ -588,13 +629,15 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
           <input type="date" value={expense.expense_date || ''} onChange={e => setExpenseField('expense_date', e.target.value)} />
           <input placeholder="Açıklama" value={expense.note || ''} onChange={e => setExpenseField('note', e.target.value)} />
         </div>
-        <button className="primary" type="submit">Masraf Ekle</button>
+        <div className="expenseFormActions">
+          <button className="primary" type="submit">{editingExpenseId ? 'Masrafı Güncelle' : 'Masraf Ekle'}</button>
+          {editingExpenseId && <button className="ghost" type="button" onClick={cancelExpenseEdit}>Vazgeç</button>}
+        </div>
       </form>
-      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>İşlem</th></tr></thead><tbody>{expenses.length ? expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td><td><div className="rowActions"><button type="button" className="miniBtn" onClick={() => fillExpenseForm(x)}>Düzelt</button><button type="button" className="miniBtn danger" onClick={() => deleteExpense(x)}>Sil</button></div></td></tr>) : <tr><td colSpan="10">Masraf kaydı yok.</td></tr>}</tbody></table></div>
     </main>
   </div>;
 }
-
 
 
 
@@ -856,6 +899,7 @@ function moneyByCurrency(items, amountKey = 'amount', currencyKey = 'currency') 
 }
 
 function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request, reload }) {
+  const [editingAdvanceId, setEditingAdvanceId] = useState(null);
   const selectedTripId = advance.trip_id || '';
   const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
   const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : advances;
@@ -881,6 +925,38 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
     setAdvance(prev => ({ ...prev, [name]: value }));
   }
 
+  function fillAdvanceForm(row) {
+    setEditingAdvanceId(row.id);
+    setAdvance({
+      trip_id: row.trip_id || '',
+      receiver_type: row.receiver_type || '',
+      receiver_name: row.receiver_name || '',
+      amount: row.amount ?? '',
+      currency: row.currency || 'TRY',
+      advance_date: row.advance_date || '',
+      note: row.note || row.description || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelAdvanceEdit() {
+    setEditingAdvanceId(null);
+    setAdvance({ ...blankAdvance, trip_id: advance.trip_id, currency: advance.currency || 'TRY' });
+  }
+
+  async function deleteAdvance(row) {
+    if (!confirm(`${row.receiver_name || 'Avans'} kaydı silinsin mi?`)) return;
+    try {
+      await request(`/advances/${row.id}`, { method: 'DELETE' });
+      if (editingAdvanceId === row.id) cancelAdvanceEdit();
+      await reload();
+      alert('Avans silindi');
+    } catch (err) {
+      console.error(err);
+      alert('Avans silinemedi: ' + err.message);
+    }
+  }
+
   async function saveAdvance(e) {
     e.preventDefault();
     if (!advance.trip_id) return alert('Sefer seçiniz.');
@@ -898,10 +974,13 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
 
     if (!confirm(msg)) return;
 
-    await request('/advances', { method: 'POST', body: JSON.stringify(advance) });
+    const path = editingAdvanceId ? `/advances/${editingAdvanceId}` : '/advances';
+    const method = editingAdvanceId ? 'PUT' : 'POST';
+    await request(path, { method, body: JSON.stringify(advance) });
+    setEditingAdvanceId(null);
     setAdvance({ ...blankAdvance, trip_id: advance.trip_id, currency: advance.currency || 'TRY' });
     await reload();
-    alert('Avans eklendi');
+    alert(editingAdvanceId ? 'Avans güncellendi' : 'Avans eklendi');
   }
 
   return <div className="layout">
@@ -921,7 +1000,8 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
         })}
       </div>
     </aside>
-    <main className="card"><h2>Avans Girişi</h2>
+    <main className="card"><h2>{editingAdvanceId ? 'Avans Düzenle' : 'Avans Girişi'}</h2>
+      {editingAdvanceId && <p className="hint">Düzenleme modundasınız. Kaydettiğinizde seçili avans güncellenir.</p>}
       <form onSubmit={saveAdvance}>
         <div className="grid two">
           <Select label="Sefer seç" value={advance.trip_id} onChange={v => setAdvanceField('trip_id', v)} options={trips.map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
@@ -934,9 +1014,12 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
           <input type="date" value={advance.advance_date || ''} onChange={e => setAdvanceField('advance_date', e.target.value)} />
           <input placeholder="Açıklama" value={advance.note || ''} onChange={e => setAdvanceField('note', e.target.value)} />
         </div>
-        <button className="primary" type="submit">Avans Ekle</button>
+        <div className="expenseFormActions">
+          <button className="primary" type="submit">{editingAdvanceId ? 'Avansı Güncelle' : 'Avans Ekle'}</button>
+          {editingAdvanceId && <button className="ghost" type="button" onClick={cancelAdvanceEdit}>Vazgeç</button>}
+        </div>
       </form>
-      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || x.description || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th><th>İşlem</th></tr></thead><tbody>{tripAdvances.length ? tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || x.description || '-'}</td><td><div className="rowActions"><button type="button" className="miniBtn" onClick={() => fillAdvanceForm(x)}>Düzelt</button><button type="button" className="miniBtn danger" onClick={() => deleteAdvance(x)}>Sil</button></div></td></tr>) : <tr><td colSpan="8">Avans kaydı yok.</td></tr>}</tbody></table></div>
     </main>
   </div>;
 }
