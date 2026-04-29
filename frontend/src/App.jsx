@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
-import "./yilnak-sade-override.css";
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:10000';
 
@@ -655,7 +654,7 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
 
       <h3 className="summaryMainTitle">Çekici Yakıt</h3>
       <div className="cleanSummaryGrid">
-        <SummaryBox title="Boş Yakıt">
+        <SummaryBox title="1. Boş Yakıt">
           <ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(regionItems(emptyFuel, 'domestic')))} />
           <ExpenseSummaryRow label="Boş Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(emptyFuel, 'domestic'))} />
           <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(emptyFuel, 'abroad')))} />
@@ -665,7 +664,7 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
           <ExpenseSummaryRow label="Boş Yakıt (%)" value={percent(emptyPercent)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Dolu Yakıt">
+        <SummaryBox title="2. Dolu Yakıt">
           <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(regionItems(loadedFuel, 'domestic')))} />
           <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(loadedFuel, 'domestic'))} />
           <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(loadedFuel, 'abroad')))} />
@@ -675,14 +674,14 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
           <ExpenseSummaryRow label="Dolu Yakıt (%)" value={percent(loadedPercent)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Çekici Yakıt Ortalaması">
+        <SummaryBox title="3. Çekici Yakıt Ortalaması">
           <ExpenseSummaryRow label="Çekici Yakıt Ortalaması (%)" value={percent(tractorAverage)} highlight />
           <ExpenseSummaryRow label="Çekici Toplam Yakıt (lt)" value={formatNumber(tractorFuelLiters)} />
           <ExpenseSummaryRow label="Çekici Toplam Yakıt Maliyeti" value={moneyList(tractorFuel)} highlight />
           <ExpenseSummaryRow label="Dolu + Boş Maliyet" value={moneyList([...loadedFuel, ...emptyFuel])} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Öncü Yakıt">
+        <SummaryBox title="4. Öncü Yakıt">
           <ExpenseSummaryRow label="Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(regionItems(escortFuel, 'domestic')))} />
           <ExpenseSummaryRow label="Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(escortFuel, 'domestic'))} />
           <ExpenseSummaryRow label="Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(escortFuel, 'abroad')))} />
@@ -690,7 +689,7 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
           <ExpenseSummaryRow label="Yakıt Toplam" value={moneyList(escortFuel)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Yakıt Maliyet">
+        <SummaryBox title="5. Yakıt Maliyet">
           <ExpenseSummaryRow label="Yurt İçi Yakıt" value={moneyList(regionItems(fuel, 'domestic'))} />
           <ExpenseSummaryRow label="Yurt Dışı Yakıt" value={moneyList(regionItems(fuel, 'abroad'))} />
           <ExpenseSummaryRow label="Çekici Yakıt Toplam" value={moneyList(tractorFuel)} />
@@ -698,25 +697,25 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
           <ExpenseSummaryRow label="Yakıt Toplam" value={moneyList(fuel)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Çekici Ücretli Otoyol">
+        <SummaryBox title="6. Çekici Ücretli Otoyol">
           <ExpenseSummaryRow label="Yurt İçi Otoyol Geçiş" value={moneyList(regionItems(tractorTolls, 'domestic'))} />
           <ExpenseSummaryRow label="Yurt Dışı Otoyol Geçiş" value={moneyList(regionItems(tractorTolls, 'abroad'))} />
           <ExpenseSummaryRow label="Otoyol Geçiş Toplam" value={moneyList(tractorTolls)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Öncü Ücretli Otoyol">
+        <SummaryBox title="7. Öncü Ücretli Otoyol">
           <ExpenseSummaryRow label="Yurt İçi Otoyol Geçiş" value={moneyList(regionItems(escortTolls, 'domestic'))} />
           <ExpenseSummaryRow label="Yurt Dışı Otoyol Geçiş" value={moneyList(regionItems(escortTolls, 'abroad'))} />
           <ExpenseSummaryRow label="Otoyol Geçiş Toplam" value={moneyList(escortTolls)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Ücretli Otoyol Maliyet">
+        <SummaryBox title="8. Ücretli Otoyol Maliyet">
           <ExpenseSummaryRow label="Yurt İçi Otoyol Geçiş" value={moneyList(regionItems(tolls, 'domestic'))} />
           <ExpenseSummaryRow label="Yurt Dışı Otoyol Geçiş" value={moneyList(regionItems(tolls, 'abroad'))} />
           <ExpenseSummaryRow label="Otoyol Geçiş Toplam" value={moneyList(tolls)} highlight />
         </SummaryBox>
 
-        <SummaryBox title="Yol Belgesi">
+        <SummaryBox title="9. Yol Belgesi">
           <ExpenseSummaryRow label="Yol Belge Maliyeti - Yurt İçi" value={moneyList(regionItems(roadDocs, 'domestic'))} />
           <ExpenseSummaryRow label="Yol Belge Maliyeti - Yurt Dışı" value={moneyList(regionItems(roadDocs, 'abroad'))} />
           <ExpenseSummaryRow label="Yol Belgesi Toplam Maliyet" value={moneyList(roadDocs)} highlight />
@@ -724,7 +723,7 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
 
         <section className="expenseSummaryBox wide">
           <div className="sectionTitleRow">
-            <h3>Diğer Masraflar</h3>
+            <h3>10. Diğer Masraflar</h3>
             <button className="ghost" type="button" onClick={() => setSelectedOtherIds(otherItems.map(x => x.id))}>Tümünü seç</button>
           </div>
           <div className="tableWrap">
