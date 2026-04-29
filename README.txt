@@ -1,0 +1,1 @@
+Yilnak ERP - Masraf Ozeti 10 tablo yapisi hazirlandi.
