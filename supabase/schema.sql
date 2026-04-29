@@ -18,6 +18,15 @@ alter table public.erp_trips add column if not exists abroad_work_days numeric d
 
 alter table public.erp_trips add column if not exists escort_goes_abroad boolean default true;
 
+alter table public.erp_trips add column if not exists escort_domestic_start_date date;
+alter table public.erp_trips add column if not exists escort_domestic_exit_date date;
+alter table public.erp_trips add column if not exists escort_domestic_return_date date;
+alter table public.erp_trips add column if not exists escort_domestic_end_date date;
+alter table public.erp_trips add column if not exists escort_abroad_entry_date date;
+alter table public.erp_trips add column if not exists escort_abroad_exit_date date;
+alter table public.erp_trips add column if not exists escort_domestic_work_days numeric default 0;
+alter table public.erp_trips add column if not exists escort_abroad_work_days numeric default 0;
+
 
 
 drop table if exists public.erp_allowances cascade;

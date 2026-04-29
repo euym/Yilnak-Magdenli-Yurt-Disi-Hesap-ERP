@@ -570,3 +570,28 @@ button.danger {
   outline: 2px solid #60a5fa;
   background: #eff6ff;
 }
+
+
+.tripItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tripSelectButton {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tripSelectButton:hover b {
+  text-decoration: underline;
+}
+.selectedTripItem {
+  outline: 2px solid #60a5fa;
+  background: #eff6ff;
+}

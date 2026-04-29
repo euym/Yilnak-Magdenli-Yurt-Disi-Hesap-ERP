@@ -279,6 +279,20 @@ app.post('/trips', async (req, res) => {
   res.json(ok(data));
 });
 
+app.put('/trips/:id', async (req, res) => {
+  if (!req.params.id) return fail(res, 422, 'Sefer kaydı bulunamadı.');
+  const { data, error } = await supabase.from('erp_trips').update(cleanEmptyValues(req.body || {})).eq('id', req.params.id).select().single();
+  if (error) return fail(res, 400, error.message);
+  res.json(ok(data));
+});
+
+app.delete('/trips/:id', async (req, res) => {
+  if (!req.params.id) return fail(res, 422, 'Sefer kaydı bulunamadı.');
+  const { error } = await supabase.from('erp_trips').delete().eq('id', req.params.id);
+  if (error) return fail(res, 400, error.message);
+  res.json(ok({ id: req.params.id, deleted: true }));
+});
+
 app.get('/advances', async (_, res) => {
   const { data, error } = await supabase
     .from('erp_advances')
@@ -306,6 +320,34 @@ app.post('/advances', async (req, res) => {
   const { data, error } = await supabase.from('erp_advances').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
+});
+
+app.put('/advances/:id', async (req, res) => {
+  const payload = req.body || {};
+  if (!req.params.id) return fail(res, 422, 'Avans kaydı bulunamadı.');
+  if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.');
+  if (!payload.receiver_type) return fail(res, 422, 'Avans alan tipi zorunlu.');
+  if (!payload.receiver_name) return fail(res, 422, 'Avans alan kişi/firma zorunlu.');
+  if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
+  const clean = {
+    trip_id: payload.trip_id,
+    receiver_type: payload.receiver_type,
+    receiver_name: String(payload.receiver_name || '').trim(),
+    amount: payload.amount,
+    currency: payload.currency || 'TRY',
+    advance_date: payload.advance_date || null,
+    note: payload.note || payload.description || null
+  };
+  const { data, error } = await supabase.from('erp_advances').update(clean).eq('id', req.params.id).select().single();
+  if (error) return fail(res, 400, error.message);
+  res.json(ok(data));
+});
+
+app.delete('/advances/:id', async (req, res) => {
+  if (!req.params.id) return fail(res, 422, 'Avans kaydı bulunamadı.');
+  const { error } = await supabase.from('erp_advances').delete().eq('id', req.params.id);
+  if (error) return fail(res, 400, error.message);
+  res.json(ok({ id: req.params.id, deleted: true }));
 });
 
 app.get('/expenses', async (_, res) => {

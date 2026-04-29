@@ -1,0 +1,22 @@
+YILNAK ERP FINAL FIX
+
+Eklenenler:
+1) Sefer Bilgileri:
+- Kayıtlı sefere tıklayınca formda seçilir.
+- Sefer düzeltme eklendi.
+- Sefer silme eklendi.
+- Güncelleme modunda 'Seferi Güncelle' ve 'Vazgeç / Yeni Sefer' çalışır.
+
+2) Avans:
+- Seçili Sefer Avansları tablosuna Düzelt eklendi.
+- Seçili Sefer Avansları tablosuna Sil eklendi.
+- Avans güncelleme modu eklendi.
+- Vazgeç / Yeni Avans eklendi.
+
+3) Backend:
+- PUT /trips/:id
+- DELETE /trips/:id
+- PUT /advances/:id
+- DELETE /advances/:id
+
+Önceki çalışan özellikler korunmuştur.
