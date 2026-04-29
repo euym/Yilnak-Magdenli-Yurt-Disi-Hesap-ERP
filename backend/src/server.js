@@ -279,6 +279,21 @@ app.post('/trips', async (req, res) => {
   res.json(ok(data));
 });
 
+
+app.put('/trips/:id', async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('erp_trips').update(cleanEmptyValues(req.body || {})).eq('id', id).select().single();
+  if (error) return fail(res, 400, error.message);
+  res.json(ok(data));
+});
+
+app.delete('/trips/:id', async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase.from('erp_trips').delete().eq('id', id);
+  if (error) return fail(res, 400, error.message);
+  res.json(ok({ id, deleted: true }));
+});
+
 app.get('/advances', async (_, res) => {
   const { data, error } = await supabase
     .from('erp_advances')
