@@ -1,0 +1,7 @@
+HARCIRAH MASRAF OZETI FINAL FIX
+
+- Masraf Özeti ekranında Harcırah Özeti artık her zaman görünür.
+- Sefer seçili değilse tablo boş/0 değerlerle görünür.
+- Sefer seçilince çekici ve öncü harcırah alanları otomatik dolar.
+- Harcırah modülü üst menüde yok.
+- npm run build testi başarılı.

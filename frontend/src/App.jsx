@@ -948,8 +948,7 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
 
       {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar 0 değerlerle gösteriliyor.</div>}
 
-      {selectedTrip && <>
-        <h3 className="summaryMainTitle">Harcırah Özeti</h3>
+      <h3 className="summaryMainTitle">Harcırah Özeti</h3>
         <div className="cleanSummaryGrid">
           <SummaryBox title="Çekici Sürücüsü Harcırahı">
             <ExpenseSummaryRow label="Sürücü" value={tractorDriverName || '-'} />
@@ -981,7 +980,6 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
             <ExpenseSummaryRow label="Harcırah Tanımı" value={activeAllowanceDef?.name || 'Tanım yok'} />
           </SummaryBox>
         </div>
-      </>}
 
       <h3 className="summaryMainTitle">Çekici Yakıt</h3>
       <div className="cleanSummaryGrid">
