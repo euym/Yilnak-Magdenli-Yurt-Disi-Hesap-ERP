@@ -1,0 +1,12 @@
+HARCIRAH 4 TABLO + DIGER MASRAF BIRLESTIR FIX
+
+Yapilanlar:
+- Masraf ekranina 4 harcirah tablosu eklendi:
+  1) Cekici Yurt Ici Harcirah
+  2) Cekici Yurt Disi Harcirah
+  3) Oncu Yurt Ici Harcirah
+  4) Oncu Yurt Disi Harcirah
+- Oncu yurt disina cikmadiysa oncu yurt disi tablosu bos degerlerle kalir.
+- Masraf Ozeti > Diger Masraflar bolumunde "Secilenleri Birlestir" artik tablo olusturur.
+- Secimi Temizle butonu secimleri ve olusan birlestirme tablosunu temizler.
+- npm run build testi basarili.

@@ -595,3 +595,29 @@ button.danger {
   outline: 2px solid #60a5fa;
   background: #eff6ff;
 }
+
+
+.miniAllowanceBox {
+  background: #ffffff;
+  border: 1px solid #dbe6f5;
+  border-radius: 14px;
+  padding: 12px;
+  margin-top: 10px;
+}
+.miniAllowanceBox h3 {
+  margin: 0 0 4px;
+  color: #08213f;
+}
+.miniAllowanceBox table td:first-child {
+  color: #28435f;
+}
+.miniAllowanceBox table td:last-child {
+  text-align: right;
+}
+.mergedOtherTable {
+  margin-top: 12px;
+}
+.mergedOtherTable h4 {
+  margin: 0 0 8px;
+  color: #08213f;
+}
