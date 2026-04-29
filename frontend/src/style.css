@@ -545,48 +545,29 @@ th { background: #f7fbff; color: #102f4b; }
   padding: 8px 12px;
 }
 
-.expenseFormActions {
+
+.formActions {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-top: 12px;
   flex-wrap: wrap;
+  margin-top: 12px;
 }
-
 .rowActions {
   display: flex;
   gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  min-width: 150px;
 }
-
-.miniBtn {
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
-  border-radius: 8px;
-  padding: 6px 10px;
+.rowActions button {
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+button.danger {
+  background: #ffe4e6;
+  color: #9f1239;
   font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
 }
-
-.miniBtn:hover {
-  background: #f8fafc;
+.editingRow {
+  outline: 2px solid #60a5fa;
+  background: #eff6ff;
 }
-
-.miniBtn.danger {
-  border-color: #fecaca;
-  color: #b91c1c;
-}
-
-.miniBtn.danger:hover {
-  background: #fef2f2;
-}
-
-.tripItem { cursor: pointer; border-radius: 12px; padding: 10px; transition: background .15s ease, border .15s ease; }
-.tripItem:hover, .tripItem.activeTrip { background: #f3f7fb; }
-.tripActions { margin-top: 8px; }
-.formActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.secondary { border: 1px solid #cfd8e3; background: #fff; color: #334155; border-radius: 12px; padding: 11px 18px; font-weight: 700; cursor: pointer; }
-.secondary:hover { background: #f8fafc; }

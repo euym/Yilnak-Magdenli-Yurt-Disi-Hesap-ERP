@@ -279,21 +279,6 @@ app.post('/trips', async (req, res) => {
   res.json(ok(data));
 });
 
-
-app.put('/trips/:id', async (req, res) => {
-  const { id } = req.params;
-  const { data, error } = await supabase.from('erp_trips').update(cleanEmptyValues(req.body || {})).eq('id', id).select().single();
-  if (error) return fail(res, 400, error.message);
-  res.json(ok(data));
-});
-
-app.delete('/trips/:id', async (req, res) => {
-  const { id } = req.params;
-  const { error } = await supabase.from('erp_trips').delete().eq('id', id);
-  if (error) return fail(res, 400, error.message);
-  res.json(ok({ id, deleted: true }));
-});
-
 app.get('/advances', async (_, res) => {
   const { data, error } = await supabase
     .from('erp_advances')
@@ -303,13 +288,13 @@ app.get('/advances', async (_, res) => {
   res.json(ok((data || []).map(x => ({ ...x, trip_name: x.trip?.project_name || 'Projesiz Sefer' }))));
 });
 
-function validateAdvancePayload(payload, res) {
-  if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.'), null;
-  if (!payload.receiver_type) return fail(res, 422, 'Avans alan tipi zorunlu.'), null;
-  if (!payload.receiver_name) return fail(res, 422, 'Avans alan kişi/firma zorunlu.'), null;
-  if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.'), null;
-
-  return {
+app.post('/advances', async (req, res) => {
+  const payload = req.body || {};
+  if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.');
+  if (!payload.receiver_type) return fail(res, 422, 'Avans alan tipi zorunlu.');
+  if (!payload.receiver_name) return fail(res, 422, 'Avans alan kişi/firma zorunlu.');
+  if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
+  const clean = {
     trip_id: payload.trip_id,
     receiver_type: payload.receiver_type,
     receiver_name: String(payload.receiver_name || '').trim(),
@@ -318,36 +303,9 @@ function validateAdvancePayload(payload, res) {
     advance_date: payload.advance_date || null,
     note: payload.note || payload.description || null
   };
-}
-
-app.post('/advances', async (req, res) => {
-  const clean = validateAdvancePayload(req.body || {}, res);
-  if (!clean) return;
-
   const { data, error } = await supabase.from('erp_advances').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
-});
-
-app.put('/advances/:id', async (req, res) => {
-  const clean = validateAdvancePayload(req.body || {}, res);
-  if (!clean) return;
-
-  const { data, error } = await supabase
-    .from('erp_advances')
-    .update(clean)
-    .eq('id', req.params.id)
-    .select()
-    .single();
-
-  if (error) return fail(res, 400, error.message);
-  res.json(ok(data));
-});
-
-app.delete('/advances/:id', async (req, res) => {
-  const { error } = await supabase.from('erp_advances').delete().eq('id', req.params.id);
-  if (error) return fail(res, 400, error.message);
-  res.json(ok({ id: req.params.id }));
 });
 
 app.get('/expenses', async (_, res) => {
@@ -359,9 +317,16 @@ app.get('/expenses', async (_, res) => {
   res.json(ok((data || []).map(x => ({ ...x, expense_name: x.expense?.name || null, category: x.expense?.category || null, country_name: x.country?.name || null, city_name: x.city?.name || null }))));
 });
 
-
-function buildExpensePayload(payload, def) {
-  return {
+app.post('/expenses', async (req, res) => {
+  const payload = req.body || {};
+  if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.');
+  if (!payload.expense_definition_id) return fail(res, 422, 'Masraf türü zorunlu.');
+  if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
+  const { data: def, error: defError } = await supabase.from('erp_expense_definitions').select('category, default_currency').eq('id', payload.expense_definition_id).single();
+  if (defError) return fail(res, 400, defError.message);
+  if (def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' && !payload.fuel_status) return fail(res, 422, 'Çekici yakıtı için Boş/Dolu zorunlu.');
+  if (def.category === 'Yakıt' && !payload.liter) return fail(res, 422, 'Yakıt için litre zorunlu.');
+  const clean = {
     trip_id: payload.trip_id,
     expense_definition_id: payload.expense_definition_id,
     country_id: payload.country_id || null,
@@ -374,54 +339,44 @@ function buildExpensePayload(payload, def) {
     expense_date: payload.expense_date || null,
     note: payload.note || payload.description || null
   };
-}
-
-async function validateExpensePayload(payload, res) {
-  if (!payload.trip_id) { fail(res, 422, 'Sefer zorunlu.'); return null; }
-  if (!payload.expense_definition_id) { fail(res, 422, 'Masraf türü zorunlu.'); return null; }
-  if (!payload.amount) { fail(res, 422, 'Tutar zorunlu.'); return null; }
-
-  const { data: def, error: defError } = await supabase
-    .from('erp_expense_definitions')
-    .select('category, default_currency')
-    .eq('id', payload.expense_definition_id)
-    .single();
-
-  if (defError) { fail(res, 400, defError.message); return null; }
-  if (def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' && !payload.fuel_status) { fail(res, 422, 'Çekici yakıtı için Boş/Dolu zorunlu.'); return null; }
-  if (def.category === 'Yakıt' && !payload.liter) { fail(res, 422, 'Yakıt için litre zorunlu.'); return null; }
-
-  return buildExpensePayload(payload, def);
-}
-
-app.post('/expenses', async (req, res) => {
-  const clean = await validateExpensePayload(req.body || {}, res);
-  if (!clean) return;
-
   const { data, error } = await supabase.from('erp_expenses').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
 });
 
 app.put('/expenses/:id', async (req, res) => {
-  const clean = await validateExpensePayload(req.body || {}, res);
-  if (!clean) return;
-
-  const { data, error } = await supabase
-    .from('erp_expenses')
-    .update(clean)
-    .eq('id', req.params.id)
-    .select()
-    .single();
-
+  const payload = req.body || {};
+  if (!req.params.id) return fail(res, 422, 'Masraf kaydı bulunamadı.');
+  if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.');
+  if (!payload.expense_definition_id) return fail(res, 422, 'Masraf türü zorunlu.');
+  if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
+  const { data: def, error: defError } = await supabase.from('erp_expense_definitions').select('category, default_currency').eq('id', payload.expense_definition_id).single();
+  if (defError) return fail(res, 400, defError.message);
+  if (def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' && !payload.fuel_status) return fail(res, 422, 'Çekici yakıtı için Boş/Dolu zorunlu.');
+  if (def.category === 'Yakıt' && !payload.liter) return fail(res, 422, 'Yakıt için litre zorunlu.');
+  const clean = {
+    trip_id: payload.trip_id,
+    expense_definition_id: payload.expense_definition_id,
+    country_id: payload.country_id || null,
+    city_id: payload.city_id || null,
+    vehicle_type: payload.vehicle_type || null,
+    fuel_status: def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' ? payload.fuel_status : null,
+    liter: def.category === 'Yakıt' ? payload.liter : null,
+    amount: payload.amount,
+    currency: payload.currency || def.default_currency || 'TRY',
+    expense_date: payload.expense_date || null,
+    note: payload.note || payload.description || null
+  };
+  const { data, error } = await supabase.from('erp_expenses').update(clean).eq('id', req.params.id).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
 });
 
 app.delete('/expenses/:id', async (req, res) => {
+  if (!req.params.id) return fail(res, 422, 'Masraf kaydı bulunamadı.');
   const { error } = await supabase.from('erp_expenses').delete().eq('id', req.params.id);
   if (error) return fail(res, 400, error.message);
-  res.json(ok({ id: req.params.id }));
+  res.json(ok({ id: req.params.id, deleted: true }));
 });
 
 const port = process.env.PORT || 10000;
