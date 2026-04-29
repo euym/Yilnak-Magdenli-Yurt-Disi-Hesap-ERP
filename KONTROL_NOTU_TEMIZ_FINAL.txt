@@ -1,0 +1,34 @@
+YILNAK ERP TEMIZ FINAL KONTROL NOTU
+
+Bu paket A-Z kontrol edildi.
+
+Yapilan kontroller:
+- frontend/src/App.jsx incelendi.
+- frontend/src/style.css incelendi.
+- backend/src/server.js incelendi.
+- frontend/package.json incelendi.
+- backend/package.json incelendi.
+- supabase/schema.sql incelendi.
+- Harcirah modulu ust menuden kaldirilmis durumda.
+- Harcirah ozetleri Masraf Ozeti ekraninda kalici olarak gorunur.
+- Masraf ekraninda sefer seciminde beyaz ekran olusturan tanimsiz harcirah degiskenleri duzeltildi.
+- ExpenseSummaryScreen icinde kullanilan tum harcirah degiskenleri tanimli hale getirildi.
+- Masraf ekleme/duzeltme/silme korunmustur.
+- Avans duzeltme/silme korunmustur.
+- Sefer duzeltme/silme korunmustur.
+- Yakit ortalamasi km/lt olarak korunmustur.
+- Backend endpointleri kontrol edildi:
+  PUT/DELETE /trips/:id
+  PUT/DELETE /advances/:id
+  PUT/DELETE /expenses/:id
+- Supabase schema oncu sefer tarihi kolonlarini iceriyor.
+
+Test:
+- frontend: npm install && npm run build BASARILI.
+- backend: node --check src/server.js BASARILI.
+
+Onemli:
+- Render Static Site icin Root Directory: frontend
+- Build Command: npm install && npm run build
+- Publish Directory: dist
+- Backend Node servis icin start: npm start

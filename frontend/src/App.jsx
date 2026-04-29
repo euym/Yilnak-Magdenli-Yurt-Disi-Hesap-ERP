@@ -894,6 +894,46 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const tractorKmPerLiter = tractorFuelLiters > 0 ? totalTripKm / tractorFuelLiters : 0;
   const selectedOtherItems = otherItems.filter(x => selectedOtherIds.includes(x.id));
 
+  const activeAllowanceDef = (defs?.allowanceDefinitions || []).find(x => x.is_active) || (defs?.allowanceDefinitions || [])[0] || null;
+  const allowanceDaily = {
+    domestic: activeAllowanceDef?.domestic_daily_amount || 0,
+    abroad: activeAllowanceDef?.abroad_daily_amount || 0
+  };
+  const allowanceCurrency = {
+    domestic: activeAllowanceDef?.domestic_currency || 'TRY',
+    abroad: activeAllowanceDef?.abroad_currency || 'EUR'
+  };
+  const tractorDriverName = (defs?.drivers || []).find(d => d.id === selectedTrip?.driver_id)?.name || '';
+  const escortDriverName = (defs?.escorts || []).find(e => e.id === selectedTrip?.escort_id)?.name || '';
+  const tractorAllowanceDates = {
+    domestic_start_date: formatDateForInput(selectedTrip?.domestic_start_date),
+    domestic_exit_date: formatDateForInput(selectedTrip?.domestic_exit_date),
+    domestic_return_date: formatDateForInput(selectedTrip?.domestic_return_date),
+    domestic_end_date: formatDateForInput(selectedTrip?.domestic_end_date),
+    abroad_entry_date: formatDateForInput(selectedTrip?.abroad_entry_date),
+    abroad_exit_date: formatDateForInput(selectedTrip?.abroad_exit_date)
+  };
+  const escortGoesAbroad = selectedTrip?.escort_goes_abroad !== false;
+  const escortAllowanceDates = {
+    domestic_start_date: formatDateForInput(selectedTrip?.escort_domestic_start_date || selectedTrip?.domestic_start_date),
+    domestic_exit_date: formatDateForInput(selectedTrip?.escort_domestic_exit_date || selectedTrip?.domestic_exit_date),
+    domestic_return_date: formatDateForInput(selectedTrip?.escort_domestic_return_date || selectedTrip?.domestic_return_date),
+    domestic_end_date: formatDateForInput(selectedTrip?.escort_domestic_end_date || selectedTrip?.domestic_end_date),
+    abroad_entry_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_entry_date || selectedTrip?.abroad_entry_date) : '',
+    abroad_exit_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_exit_date || selectedTrip?.abroad_exit_date) : ''
+  };
+  const tractorAllowanceDays = calcAllowanceDaysFromDates(tractorAllowanceDates);
+  const escortAllowanceDays = escortGoesAbroad ? calcAllowanceDaysFromDates(escortAllowanceDates) : {
+    domesticDays: baseDaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date) + countSundaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date),
+    abroadDays: 0
+  };
+  const allowanceTotals = {
+    tractorDomestic: tractorAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
+    tractorAbroad: tractorAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad),
+    escortDomestic: escortAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
+    escortAbroad: escortAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad)
+  };
+
   function totalsByCurrency(items) {
     return currencies
       .map(c => ({ currency: c, amount: sumAmount(items, c) }))
