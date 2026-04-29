@@ -1,0 +1,35 @@
+Tanımlar / masraf kalemleri düzeltmesi yapıldı.
+
+Yapılanlar:
+- Backend'e eksik olan POST /definitions/:kind route'u eklendi.
+- Backend'e PUT /definitions/:kind/:id route'u eklendi.
+- Backend'e DELETE /definitions/:kind/:id route'u eklendi.
+- Tanımlar ekranında masraf kalemleri artık eklenebilir, düzenlenebilir ve silinebilir.
+- Masraf kategorisi artık sabit dropdown değil: kategori yazılabilir veya mevcut kategorilerden seçilebilir.
+- Unexpected token '<' hatasını daha anlaşılır API hatasına çevirmek için frontend request fonksiyonu düzeltildi.
+- Backend, JSON cevap dönecek şekilde definitions route'ları ile tamamlandı.
+
+Örnek proje eklendi:
+- Backend açıldığında Supabase içinde yoksa 1 adet örnek proje/sefer oluşturur.
+- Proje adı: ÖRNEK PROJE - MAGDENLİ TEST
+- Şoför, öncü, araçlar, ülkeler, şehirler, masraf kalemleri, masraflar, avans ve harcırah örnek kayıtları eklenir.
+- Aynı proje varsa tekrar ekleme yapmaz.
+
+Yükleniyor ekranında kalma düzeltmesi:
+- Frontend API adresi production'da localhost yerine window.location.origin olarak düzeltildi.
+- API isteklerine 10 saniye timeout eklendi.
+- loadAll hata alsa bile ekranı açacak fallback setDefs mantığı eklendi.
+
+Seferi Kaydet ve Masrafa Geç butonu düzeltildi:
+- Sefer kaydolunca masraf ekranına hemen geçer.
+- Kaydedilen sefer id'si masraf formuna otomatik taşınır.
+- Boş string alanlar null'a çevrilir; UUID/date alanları backend'de patlamaz.
+- Liste yenileme ekran geçişini bloke etmez, arkada çalışır.
+- Hata olursa artık sessiz kalmaz, kullanıcıya net alert gösterir.
+
+Masraf ekranı düzeltmesi:
+- Şehir seçimi kaldırıldı.
+- Öncü ve Diğer araç yakıtında Boş/Dolu seçimi kaldırıldı.
+- Boş/Dolu sadece Çekici yakıtında zorunlu.
+- Masraf kaydetme try/catch ile düzeltildi, hata kullanıcıya gösterilir.
+- Backend erp_expenses insert alanı description yerine note olarak düzeltildi.

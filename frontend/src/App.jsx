@@ -503,6 +503,7 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
 }
 
 function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, reload }) {
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
   const selectedDef = defs.expenseDefinitions.find(x => x.id === expense.expense_definition_id);
   const isFuel = selectedDef?.category === 'Yakıt';
   const needsFuelStatus = isFuel && expense.vehicle_type === 'Çekici';
@@ -545,14 +546,58 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
         fuel_status: needsFuelStatus ? expense.fuel_status : ''
       });
 
-      await request('/expenses', { method: 'POST', body: JSON.stringify(payload) });
+      if (editingExpenseId) {
+        await request(`/expenses/${editingExpenseId}`, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await request('/expenses', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      setEditingExpenseId(null);
       setExpense({ ...blankExpense, trip_id: expense.trip_id });
       await reload();
-      alert('Masraf eklendi');
+      alert(editingExpenseId ? 'Masraf güncellendi' : 'Masraf eklendi');
     } catch (err) {
       console.error(err);
       alert('Masraf kaydedilemedi: ' + err.message);
     }
+  }
+
+  function editExpense(item) {
+    setEditingExpenseId(item.id);
+    setExpense({
+      trip_id: item.trip_id || '',
+      expense_definition_id: item.expense_definition_id || '',
+      country_id: item.country_id || '',
+      city_id: item.city_id || '',
+      vehicle_type: item.vehicle_type || '',
+      fuel_status: item.fuel_status || '',
+      liter: item.liter ?? '',
+      amount: item.amount ?? '',
+      currency: item.currency || 'TRY',
+      expense_date: item.expense_date || '',
+      note: item.note || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteExpense(item) {
+    if (!confirm(`${item.expense_name || 'Masraf'} kaydı silinsin mi?`)) return;
+    try {
+      await request(`/expenses/${item.id}`, { method: 'DELETE' });
+      if (editingExpenseId === item.id) {
+        setEditingExpenseId(null);
+        setExpense({ ...blankExpense, trip_id: expense.trip_id });
+      }
+      await reload();
+      alert('Masraf silindi');
+    } catch (err) {
+      console.error(err);
+      alert('Masraf silinemedi: ' + err.message);
+    }
+  }
+
+  function cancelExpenseEdit() {
+    setEditingExpenseId(null);
+    setExpense({ ...blankExpense, trip_id: expense.trip_id });
   }
 
   return <div className="layout">
@@ -562,7 +607,7 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
       <div><span>Boş Litre</span><b>{summary.emptyLiter.toLocaleString('tr-TR')}</b></div>
       <div><span>Dolu Litre</span><b>{summary.loadedLiter.toLocaleString('tr-TR')}</b></div>
     </div></aside>
-    <main className="card"><h2>Masraf Girişi</h2>
+    <main className="card"><h2>{editingExpenseId ? 'Masraf Düzeltme' : 'Masraf Girişi'}</h2>
       <form onSubmit={saveExpense}>
         <div className="grid two">
           <Select label="Sefer seç" value={expense.trip_id} onChange={v => setExpenseField('trip_id', v)} options={trips.map(t => ({ ...t, label: `${t.project_name || 'Projesiz'} - ${new Date(t.created_at).toLocaleDateString('tr-TR')}` }))} textKey="label" />
@@ -588,13 +633,15 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
           <input type="date" value={expense.expense_date || ''} onChange={e => setExpenseField('expense_date', e.target.value)} />
           <input placeholder="Açıklama" value={expense.note || ''} onChange={e => setExpenseField('note', e.target.value)} />
         </div>
-        <button className="primary" type="submit">Masraf Ekle</button>
+        <div className="formActions">
+          <button className="primary" type="submit">{editingExpenseId ? 'Masrafı Güncelle' : 'Masraf Ekle'}</button>
+          {editingExpenseId && <button type="button" className="ghost" onClick={cancelExpenseEdit}>Vazgeç / Yeni Masraf</button>}
+        </div>
       </form>
-      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>İşlem</th></tr></thead><tbody>{expenses.length ? expenses.map(x => <tr key={x.id} className={editingExpenseId === x.id ? 'editingRow' : ''}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td><td className="rowActions"><button type="button" onClick={() => editExpense(x)}>Düzelt</button><button type="button" className="danger" onClick={() => deleteExpense(x)}>Sil</button></td></tr>) : <tr><td colSpan="10">Henüz masraf girilmedi.</td></tr>}</tbody></table></div>
     </main>
   </div>;
 }
-
 
 
 
