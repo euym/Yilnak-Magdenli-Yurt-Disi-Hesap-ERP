@@ -363,7 +363,6 @@ function App() {
         <button className={screen === 'report' ? 'active' : ''} onClick={() => setScreen('report')}>Rapor</button>
         <button className={screen === 'expenseSummary' ? 'active' : ''} onClick={() => setScreen('expenseSummary')}>Masraf Özeti</button>
         <button className={screen === 'trip' ? 'active' : ''} onClick={() => setScreen('trip')}>Sefer Bilgileri</button>
-        <button className={screen === 'allowances' ? 'active' : ''} onClick={() => setScreen('allowances')}>Harcırah</button>
         <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
         <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
         <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
@@ -373,7 +372,6 @@ function App() {
       {screen === 'report' && <ReportScreen defs={defs} trips={trips} expenses={expenses} advances={advances} allowances={allowances} />}
       {screen === 'expenseSummary' && <ExpenseSummaryScreen defs={defs} trips={trips} expenses={expenses} />}
       {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} editingTripId={editingTripId} setField={setField} saveTrip={saveTrip} editTrip={editTrip} deleteTrip={deleteTrip} cancelTripEdit={cancelTripEdit} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} tripAllowanceDays={tripAllowanceDays} escortTripAllowanceDays={escortTripAllowanceDays} citiesFor={citiesFor} />}
-      {screen === 'allowances' && <AllowanceScreen defs={defs} trips={trips} allowances={allowances} allowance={allowance} setAllowance={setAllowance} request={request} reload={loadAll} />}
       {screen === 'advances' && <AdvanceScreen trips={trips} advances={advances} expenses={expenses} advance={advance} setAdvance={setAdvance} request={request} reload={loadAll} />}
       {screen === 'expenses' && <ExpenseScreen defs={defs} trips={trips} expenses={expenses} expense={expense} setExpense={setExpense} request={request} reload={loadAll} />}
       {screen === 'definitions' && <Definitions defs={defs} reload={loadAll} request={request} />}
@@ -399,6 +397,46 @@ function ReportScreen({ defs, trips, expenses, advances, allowances }) {
   const [selectedTripId, setSelectedTripId] = useState('');
   const selectedTrip = trips.find(t => t.id === selectedTripId) || null;
   const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
+
+  const activeAllowanceDef = (defs.allowanceDefinitions || []).find(x => x.is_active) || (defs.allowanceDefinitions || [])[0] || null;
+  const allowanceDaily = {
+    domestic: activeAllowanceDef?.domestic_daily_amount || 0,
+    abroad: activeAllowanceDef?.abroad_daily_amount || 0
+  };
+  const allowanceCurrency = {
+    domestic: activeAllowanceDef?.domestic_currency || 'TRY',
+    abroad: activeAllowanceDef?.abroad_currency || 'EUR'
+  };
+  const tractorDriverName = (defs.drivers || []).find(d => d.id === selectedTrip?.driver_id)?.name || '';
+  const escortDriverName = (defs.escorts || []).find(e => e.id === selectedTrip?.escort_id)?.name || '';
+  const tractorAllowanceDates = {
+    domestic_start_date: formatDateForInput(selectedTrip?.domestic_start_date),
+    domestic_exit_date: formatDateForInput(selectedTrip?.domestic_exit_date),
+    domestic_return_date: formatDateForInput(selectedTrip?.domestic_return_date),
+    domestic_end_date: formatDateForInput(selectedTrip?.domestic_end_date),
+    abroad_entry_date: formatDateForInput(selectedTrip?.abroad_entry_date),
+    abroad_exit_date: formatDateForInput(selectedTrip?.abroad_exit_date)
+  };
+  const escortGoesAbroad = selectedTrip?.escort_goes_abroad !== false;
+  const escortAllowanceDates = {
+    domestic_start_date: formatDateForInput(selectedTrip?.escort_domestic_start_date || selectedTrip?.domestic_start_date),
+    domestic_exit_date: formatDateForInput(selectedTrip?.escort_domestic_exit_date || selectedTrip?.domestic_exit_date),
+    domestic_return_date: formatDateForInput(selectedTrip?.escort_domestic_return_date || selectedTrip?.domestic_return_date),
+    domestic_end_date: formatDateForInput(selectedTrip?.escort_domestic_end_date || selectedTrip?.domestic_end_date),
+    abroad_entry_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_entry_date || selectedTrip?.abroad_entry_date) : '',
+    abroad_exit_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_exit_date || selectedTrip?.abroad_exit_date) : ''
+  };
+  const tractorAllowanceDays = calcAllowanceDaysFromDates(tractorAllowanceDates);
+  const escortAllowanceDays = escortGoesAbroad ? calcAllowanceDaysFromDates(escortAllowanceDates) : {
+    domesticDays: baseDaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date) + countSundaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date),
+    abroadDays: 0
+  };
+  const allowanceTotals = {
+    tractorDomestic: tractorAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
+    tractorAbroad: tractorAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad),
+    escortDomestic: escortAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
+    escortAbroad: escortAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad)
+  };
   const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : [];
   const tripAllowances = selectedTripId ? allowances.filter(x => x.trip_id === selectedTripId) : [];
 
@@ -455,6 +493,12 @@ function ReportScreen({ defs, trips, expenses, advances, allowances }) {
       <h3>Verilen Avans Tablosu</h3>
       <div className="tableWrap"><table><thead><tr><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead>
       <tbody>{tripAdvances.length ? tripAdvances.map(x => <tr key={x.id}><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.description || x.note || '-'}</td></tr>) : <tr><td colSpan="6">Avans kaydı yok.</td></tr>}</tbody></table></div>
+      <div style={{marginTop:'10px'}}>
+        <button className="primary" onClick={() => alert('Seçilen masraflar birleştirildi (simülasyon)')}>
+          Seçilenleri Birleştir
+        </button>
+      </div>
+
     </section>
 
     <section className="reportSection">
@@ -830,9 +874,11 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const currencies = Array.from(new Set(['TRY', 'EUR', 'USD', ...tripExpenses.map(currencyOf)]));
   const totalFuelLiters = sumLiter(fuel);
   const tractorFuelLiters = sumLiter(tractorFuel);
-  const emptyPercent = tractorFuelLiters > 0 ? (sumLiter(emptyFuel) / tractorFuelLiters) * 100 : 0;
-  const loadedPercent = tractorFuelLiters > 0 ? (sumLiter(loadedFuel) / tractorFuelLiters) * 100 : 0;
-  const tractorAverage = totalTripKm > 0 ? (tractorFuelLiters / totalTripKm) * 100 : 0;
+  const emptyFuelLiters = sumLiter(emptyFuel);
+  const loadedFuelLiters = sumLiter(loadedFuel);
+  const emptyKmPerLiter = emptyFuelLiters > 0 ? totalTripKm / emptyFuelLiters : 0;
+  const loadedKmPerLiter = loadedFuelLiters > 0 ? totalTripKm / loadedFuelLiters : 0;
+  const tractorKmPerLiter = tractorFuelLiters > 0 ? totalTripKm / tractorFuelLiters : 0;
   const selectedOtherItems = otherItems.filter(x => selectedOtherIds.includes(x.id));
 
   function totalsByCurrency(items) {
@@ -846,8 +892,8 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
     return rows.length ? rows.map(x => formatMoney(x.amount, x.currency)).join(' / ') : '0';
   }
 
-  function percent(value) {
-    return `${numberValue(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`;
+  function fuelAverage(value) {
+    return value > 0 ? `${numberValue(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })} km/lt` : '0 km/lt';
   }
 
   function regionItems(items, region) {
@@ -889,6 +935,41 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
 
       {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar 0 değerlerle gösteriliyor.</div>}
 
+      {selectedTrip && <>
+        <h3 className="summaryMainTitle">Harcırah Özeti</h3>
+        <div className="cleanSummaryGrid">
+          <SummaryBox title="Çekici Sürücüsü Harcırahı">
+            <ExpenseSummaryRow label="Sürücü" value={tractorDriverName || '-'} />
+            <ExpenseSummaryRow label="Yurt İçi Tarihleri" value={`${tractorAllowanceDates.domestic_start_date || '-'} / ${tractorAllowanceDates.domestic_exit_date || '-'} / ${tractorAllowanceDates.domestic_return_date || '-'} / ${tractorAllowanceDates.domestic_end_date || '-'}`} />
+            <ExpenseSummaryRow label="Yurt İçi Gün" value={tractorAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
+            <ExpenseSummaryRow label="Yurt İçi Günlük Harcırah" value={`${numberValue(allowanceDaily.domestic).toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} />
+            <ExpenseSummaryRow label="Yurt İçi Harcırah" value={`${allowanceTotals.tractorDomestic.toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} highlight />
+            <ExpenseSummaryRow label="Yurt Dışı Tarihleri" value={`${tractorAllowanceDates.abroad_entry_date || '-'} / ${tractorAllowanceDates.abroad_exit_date || '-'}`} />
+            <ExpenseSummaryRow label="Yurt Dışı Gün" value={tractorAllowanceDays.abroadDays.toLocaleString('tr-TR')} />
+            <ExpenseSummaryRow label="Yurt Dışı Günlük Harcırah" value={`${numberValue(allowanceDaily.abroad).toLocaleString('tr-TR')} ${allowanceCurrency.abroad}`} />
+            <ExpenseSummaryRow label="Yurt Dışı Harcırah" value={`${allowanceTotals.tractorAbroad.toLocaleString('tr-TR')} ${allowanceCurrency.abroad}`} highlight />
+          </SummaryBox>
+
+          <SummaryBox title="Öncü Sürücüsü Harcırahı">
+            <ExpenseSummaryRow label="Öncü Sürücü" value={escortDriverName || '-'} />
+            <ExpenseSummaryRow label="Yurt İçi Tarihleri" value={`${escortAllowanceDates.domestic_start_date || '-'} / ${escortAllowanceDates.domestic_exit_date || '-'} / ${escortAllowanceDates.domestic_return_date || '-'} / ${escortAllowanceDates.domestic_end_date || '-'}`} />
+            <ExpenseSummaryRow label="Yurt İçi Gün" value={escortAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
+            <ExpenseSummaryRow label="Yurt İçi Günlük Harcırah" value={`${numberValue(allowanceDaily.domestic).toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} />
+            <ExpenseSummaryRow label="Yurt İçi Harcırah" value={`${allowanceTotals.escortDomestic.toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} highlight />
+            <ExpenseSummaryRow label="Yurt Dışı Tarihleri" value={escortGoesAbroad ? `${escortAllowanceDates.abroad_entry_date || '-'} / ${escortAllowanceDates.abroad_exit_date || '-'}` : ''} />
+            <ExpenseSummaryRow label="Yurt Dışı Gün" value={escortGoesAbroad ? escortAllowanceDays.abroadDays.toLocaleString('tr-TR') : ''} />
+            <ExpenseSummaryRow label="Yurt Dışı Günlük Harcırah" value={escortGoesAbroad ? `${numberValue(allowanceDaily.abroad).toLocaleString('tr-TR')} ${allowanceCurrency.abroad}` : ''} />
+            <ExpenseSummaryRow label="Yurt Dışı Harcırah" value={escortGoesAbroad ? `${allowanceTotals.escortAbroad.toLocaleString('tr-TR')} ${allowanceCurrency.abroad}` : ''} highlight />
+          </SummaryBox>
+
+          <SummaryBox title="Toplam Harcırah">
+            <ExpenseSummaryRow label="Toplam Yurt İçi Harcırah" value={`${(allowanceTotals.tractorDomestic + allowanceTotals.escortDomestic).toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} highlight />
+            <ExpenseSummaryRow label="Toplam Yurt Dışı Harcırah" value={`${(allowanceTotals.tractorAbroad + allowanceTotals.escortAbroad).toLocaleString('tr-TR')} ${allowanceCurrency.abroad}`} highlight />
+            <ExpenseSummaryRow label="Harcırah Tanımı" value={activeAllowanceDef?.name || 'Tanım yok'} />
+          </SummaryBox>
+        </div>
+      </>}
+
       <h3 className="summaryMainTitle">Çekici Yakıt</h3>
       <div className="cleanSummaryGrid">
         <SummaryBox title="Boş Yakıt">
@@ -896,9 +977,9 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
           <ExpenseSummaryRow label="Boş Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(emptyFuel, 'domestic'))} />
           <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(emptyFuel, 'abroad')))} />
           <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt Tutarı" value={moneyList(regionItems(emptyFuel, 'abroad'))} />
-          <ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} highlight />
+          <ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(emptyFuelLiters)} highlight />
           <ExpenseSummaryRow label="Toplam Boş Yakıt Maliyeti" value={moneyList(emptyFuel)} highlight />
-          <ExpenseSummaryRow label="Boş Yakıt (%)" value={percent(emptyPercent)} highlight />
+          <ExpenseSummaryRow label="Boş Yakıt Ortalaması" value={fuelAverage(emptyKmPerLiter)} highlight />
         </SummaryBox>
 
         <SummaryBox title="Dolu Yakıt">
@@ -906,13 +987,13 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
           <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(loadedFuel, 'domestic'))} />
           <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(loadedFuel, 'abroad')))} />
           <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt Tutarı" value={moneyList(regionItems(loadedFuel, 'abroad'))} />
-          <ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} highlight />
+          <ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(loadedFuelLiters)} highlight />
           <ExpenseSummaryRow label="Toplam Dolu Yakıt Maliyeti" value={moneyList(loadedFuel)} highlight />
-          <ExpenseSummaryRow label="Dolu Yakıt (%)" value={percent(loadedPercent)} highlight />
+          <ExpenseSummaryRow label="Dolu Yakıt Ortalaması" value={fuelAverage(loadedKmPerLiter)} highlight />
         </SummaryBox>
 
         <SummaryBox title="Çekici Yakıt Ortalaması">
-          <ExpenseSummaryRow label="Çekici Yakıt Ortalaması (%)" value={percent(tractorAverage)} highlight />
+          <ExpenseSummaryRow label="Çekici Yakıt Ortalaması" value={fuelAverage(tractorKmPerLiter)} highlight />
           <ExpenseSummaryRow label="Çekici Toplam Yakıt (lt)" value={formatNumber(tractorFuelLiters)} />
           <ExpenseSummaryRow label="Çekici Toplam Yakıt Maliyeti" value={moneyList(tractorFuel)} highlight />
           <ExpenseSummaryRow label="Dolu + Boş Maliyet" value={moneyList([...loadedFuel, ...emptyFuel])} highlight />

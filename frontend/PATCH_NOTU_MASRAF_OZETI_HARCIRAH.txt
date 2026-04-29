@@ -1,0 +1,8 @@
+MASRAF OZETI + HARCIRAH REVIZE
+
+Yapilanlar:
+- Ust menuden Harcirah modulu kaldirildi.
+- Harcirah ekranindaki cekici ve oncu harcirah ozetleri Masraf Ozeti ekranina eklendi.
+- Cekici ve oncu harcirahlari kendi sefer tarihlerinden hesaplanir.
+- Oncu yurt disina cikmadiysa yurt disi harcirah alanlari bos kalir.
+- Diger calisan masraf, avans, sefer ve yakit ortalama kisimlarina dokunulmadi.

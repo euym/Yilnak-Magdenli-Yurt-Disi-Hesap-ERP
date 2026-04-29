@@ -1,0 +1,11 @@
+YAKIT ORTALAMA FIX
+
+Masraf Özeti > Çekici Yakıt bölümünde:
+- Boş Yakıt (%) kaldırıldı.
+- Dolu Yakıt (%) kaldırıldı.
+- Hesaplama km/lt olarak revize edildi.
+
+Yeni formüller:
+- Boş Yakıt Ortalaması = Toplam Sefer KM / Toplam Boş Yakıt Litresi
+- Dolu Yakıt Ortalaması = Toplam Sefer KM / Toplam Dolu Yakıt Litresi
+- Çekici Yakıt Ortalaması = Toplam Sefer KM / Çekici Toplam Yakıt Litresi
