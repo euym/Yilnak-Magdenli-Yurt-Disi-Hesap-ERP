@@ -34,6 +34,147 @@ function cleanPayload(kind, payload) {
   return payload;
 }
 
+
+async function getOrCreateBy(table, match, payload) {
+  const key = Object.keys(match)[0];
+  const value = match[key];
+
+  const existing = await supabase.from(table).select('*').eq(key, value).maybeSingle();
+  if (existing.error) throw existing.error;
+  if (existing.data) return existing.data;
+
+  const created = await supabase.from(table).insert(payload).select('*').single();
+  if (created.error) throw created.error;
+  return created.data;
+}
+
+async function seedSampleProject() {
+  try {
+    const projectName = 'ÖRNEK PROJE - MAGDENLİ TEST';
+
+    const existingTrip = await supabase
+      .from('erp_trips')
+      .select('id')
+      .eq('project_name', projectName)
+      .maybeSingle();
+
+    if (existingTrip.error) throw existingTrip.error;
+    if (existingTrip.data) return;
+
+    const project = await getOrCreateBy('erp_projects', { name: projectName }, { name: projectName });
+    const driver = await getOrCreateBy('erp_drivers', { name: 'Örnek Şoför Ali' }, { name: 'Örnek Şoför Ali' });
+    const escort = await getOrCreateBy('erp_escorts', { name: 'Örnek Öncü Mehmet' }, { name: 'Örnek Öncü Mehmet' });
+    const tractor = await getOrCreateBy('erp_tractors', { plate: '34 YNK 001' }, { plate: '34 YNK 001', info: 'Örnek çekici' });
+    const trailer = await getOrCreateBy('erp_trailers', { plate: '34 DRS 001' }, { plate: '34 DRS 001', info: 'Örnek dorse' });
+    const escortVehicle = await getOrCreateBy('erp_escort_vehicles', { plate: '34 ONC 001' }, { plate: '34 ONC 001', info: 'Örnek öncü araç' });
+
+    const turkey = await getOrCreateBy('erp_countries', { name: 'Türkiye' }, { name: 'Türkiye' });
+    const germany = await getOrCreateBy('erp_countries', { name: 'Almanya' }, { name: 'Almanya' });
+
+    const istanbul = await getOrCreateBy('erp_cities', { name: 'İstanbul' }, { country_id: turkey.id, name: 'İstanbul' });
+    const munich = await getOrCreateBy('erp_cities', { name: 'Münih' }, { country_id: germany.id, name: 'Münih' });
+
+    const fuel = await getOrCreateBy('erp_expense_definitions', { name: 'Örnek Mazot' }, { name: 'Örnek Mazot', category: 'Yakıt', default_currency: 'EUR' });
+    const toll = await getOrCreateBy('erp_expense_definitions', { name: 'Örnek Otoban' }, { name: 'Örnek Otoban', category: 'Yol', default_currency: 'EUR' });
+    const doc = await getOrCreateBy('erp_expense_definitions', { name: 'Örnek Yol Belgesi' }, { name: 'Örnek Yol Belgesi', category: 'Belge', default_currency: 'TRY' });
+
+    await getOrCreateBy('erp_allowance_definitions', { name: 'Örnek Harcırah' }, {
+      name: 'Örnek Harcırah',
+      domestic_daily_amount: 1200,
+      domestic_currency: 'TRY',
+      abroad_daily_amount: 40,
+      abroad_currency: 'EUR',
+      is_active: true
+    });
+
+    const tripPayload = {
+      project_id: project.id,
+      project_name: projectName,
+      load_type: 'Trafo',
+      load_width: 420,
+      load_height: 460,
+      load_length: 1200,
+      load_weight: 72000,
+      tractor_tonnage: 18000,
+      trailer_tonnage: 24000,
+      tonnage_capacity_formula: 130000,
+      start_country_id: turkey.id,
+      start_city_id: istanbul.id,
+      unloading_country_id: germany.id,
+      unloading_city_id: munich.id,
+      end_country_id: turkey.id,
+      end_city_id: istanbul.id,
+      trip_count: 1,
+      start_km: 100000,
+      end_km: 104250,
+      domestic_start_date: '2026-04-01',
+      domestic_exit_date: '2026-04-03',
+      abroad_entry_date: '2026-04-03',
+      abroad_exit_date: '2026-04-10',
+      domestic_return_date: '2026-04-11',
+      domestic_end_date: '2026-04-12',
+      domestic_work_days: 5,
+      abroad_work_days: 8,
+      escort_goes_abroad: true,
+      driver_id: driver.id,
+      tractor_id: tractor.id,
+      trailer_id: trailer.id,
+      escort_id: escort.id,
+      escort_vehicle_id: escortVehicle.id
+    };
+
+    const tripInsert = await supabase.from('erp_trips').insert(tripPayload).select('*').single();
+    if (tripInsert.error) throw tripInsert.error;
+    const trip = tripInsert.data;
+
+    const expenseRows = [
+      { trip_id: trip.id, expense_definition_id: fuel.id, country_id: turkey.id, city_id: istanbul.id, vehicle_type: 'Çekici', fuel_status: 'Boş', liter: 320, amount: 18000, currency: 'TRY', expense_date: '2026-04-01', note: 'Örnek boş yurt içi yakıt' },
+      { trip_id: trip.id, expense_definition_id: fuel.id, country_id: germany.id, city_id: munich.id, vehicle_type: 'Çekici', fuel_status: 'Dolu', liter: 740, amount: 1250, currency: 'EUR', expense_date: '2026-04-05', note: 'Örnek dolu yurt dışı yakıt' },
+      { trip_id: trip.id, expense_definition_id: fuel.id, country_id: turkey.id, city_id: istanbul.id, vehicle_type: 'Öncü', fuel_status: 'Dolu', liter: 180, amount: 9800, currency: 'TRY', expense_date: '2026-04-02', note: 'Örnek öncü yakıt' },
+      { trip_id: trip.id, expense_definition_id: toll.id, country_id: germany.id, city_id: munich.id, vehicle_type: 'Çekici', amount: 420, currency: 'EUR', expense_date: '2026-04-06', note: 'Örnek çekici otoyol' },
+      { trip_id: trip.id, expense_definition_id: toll.id, country_id: germany.id, city_id: munich.id, vehicle_type: 'Öncü', amount: 160, currency: 'EUR', expense_date: '2026-04-06', note: 'Örnek öncü otoyol' },
+      { trip_id: trip.id, expense_definition_id: doc.id, country_id: turkey.id, city_id: istanbul.id, vehicle_type: 'Çekici', amount: 3500, currency: 'TRY', expense_date: '2026-04-01', note: 'Örnek yol belgesi' }
+    ];
+
+    const expenseInsert = await supabase.from('erp_expenses').insert(expenseRows);
+    if (expenseInsert.error) throw expenseInsert.error;
+
+    const advanceInsert = await supabase.from('erp_advances').insert({
+      trip_id: trip.id,
+      receiver_type: 'Şoför',
+      receiver_name: 'Örnek Şoför Ali',
+      amount: 500,
+      currency: 'EUR',
+      advance_date: '2026-04-01',
+      description: 'Örnek sefer avansı'
+    });
+    if (advanceInsert.error) throw advanceInsert.error;
+
+    const allowanceInsert = await supabase.from('erp_allowances').insert({
+      trip_id: trip.id,
+      domestic_start_date: '2026-04-01',
+      domestic_exit_date: '2026-04-03',
+      domestic_return_date: '2026-04-11',
+      domestic_end_date: '2026-04-12',
+      domestic_days: 5,
+      domestic_daily_amount: 1200,
+      domestic_currency: 'TRY',
+      domestic_total: 6000,
+      abroad_entry_date: '2026-04-03',
+      abroad_exit_date: '2026-04-10',
+      abroad_days: 8,
+      abroad_daily_amount: 40,
+      abroad_currency: 'EUR',
+      abroad_total: 320,
+      note: 'Örnek harcırah'
+    });
+    if (allowanceInsert.error) throw allowanceInsert.error;
+  } catch (err) {
+    console.error('Örnek proje eklenemedi:', err.message);
+  }
+}
+
+
 app.get('/', (_, res) => res.json(ok({ name: 'Yılnak & Mağdenli ERP API', status: 'running' })));
 app.get('/health', (_, res) => res.json(ok({ status: 'running' })));
 
@@ -237,4 +378,7 @@ app.post('/allowances', async (req, res) => {
 });
 
 
-app.listen(port, () => console.log(`Yilnak ERP API port ${port}`));
+app.listen(port, async () => {
+  console.log(`Yilnak ERP API port ${port}`);
+  await seedSampleProject();
+});
