@@ -20,14 +20,14 @@ input:focus, select:focus { outline: 2px solid #b9d6ff; border-color: #2674e8; }
 .readonly { min-height: 50px; padding: 6px 0; color: #36557b; }
 .readonly span { display: block; font-size: 16px; margin-bottom: 4px; }
 .readonly b { display: block; color: #001b3d; font-size: 20px; }
-.message { background: #fff8df; border: 1px solid #f3df91; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+.message { background: #ffffff; border: 1px solid #ffffff; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
 .tripItem { border-bottom: 1px solid #e6ecf3; padding: 10px 0; }
 .tripItem span { display: block; color: #667085; margin-top: 4px; }
 .defTabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .definitionForm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
 .definitionForm .primary { margin-top: 0; }
 .definitionList div { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e6ecf3; padding: 10px 0; }
-.definitionList button { background: #ffe8e8; color: #b42318; padding: 8px 12px; }
+.definitionList button { background: #ffe8e8; color: #111827; padding: 8px 12px; }
 .center { text-align: center; max-width: 600px; margin: 40px auto; }
 
 @media (max-width: 900px) {
@@ -68,7 +68,7 @@ th { background: #f7fbff; color: #102f4b; }
 .balanceBox b { font-size: 15px; }
 .balanceBox span { font-size: 22px; font-weight: 800; }
 .balanceBox.ok { background: #ecfdf5; border-color: #86efac; }
-.balanceBox.warn { background-color: #ffffff; border-color: #fdba74; }
+.balanceBox.warn { background-color: #ffffff; border-color: #dbe3ee; }
 .balanceBox.closed { background: #eff6ff; border-color: #93c5fd; }
 .hint { font-size: 12px; color: #64748b; margin-top: 10px; }
 
@@ -157,7 +157,7 @@ th { background: #f7fbff; color: #102f4b; }
   margin: 4px 0;
 }
 .currencyBalance.ok { background: #ecfdf5; border-color: #86efac; }
-.currencyBalance.warn { background-color: #ffffff; border-color: #fdba74; }
+.currencyBalance.warn { background-color: #ffffff; border-color: #dbe3ee; }
 .currencyBalance.closed { background: #eff6ff; border-color: #93c5fd; }
 
 .allowanceTable input[readonly] {
@@ -262,8 +262,8 @@ th { background: #f7fbff; color: #102f4b; }
   color: #166534;
 }
 .statusPill.warn {
-  background: #ffedd5;
-  color: #9a3412;
+  background: #ffffff;
+  color: #111827;
 }
 .allowanceInfoGrid {
   display: grid;
@@ -306,7 +306,7 @@ th { background: #f7fbff; color: #102f4b; }
   background-color: #ffffff;
 }
 .infoRows .totalRow b {
-  color: #c2410c;
+  color: #111827;
 }
 @media (max-width: 900px) {
   .allowanceInfoGrid {
@@ -329,13 +329,13 @@ th { background: #f7fbff; color: #102f4b; }
 .expenseSummaryBox h3 {
   margin: 0;
   padding: 12px 14px;
-  background: #fff7c2;
+  background: #ffffff;
   color: #111827;
   border-bottom: 1px solid #dbe3ee;
   text-align: center;
 }
 .expenseSummaryBox.fuel h3 {
-  background: #fff3c4;
+  background: #ffffff;
 }
 .expenseSummaryBox.escort h3 {
   background: #d9f3ff;
@@ -366,10 +366,10 @@ th { background: #f7fbff; color: #102f4b; }
   font-size: 13px;
 }
 .summaryRow.highlight {
-  background: #fffaf0;
+  background: #ffffff;
 }
 .summaryRow.highlight b {
-  color: #c2410c;
+  color: #111827;
 }
 @media (max-width: 1000px) {
   .expenseSummaryGrid {
