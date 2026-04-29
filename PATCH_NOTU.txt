@@ -1,1 +1,0 @@
-Backend dosyalarina dokunulmadi. MasrafOzeti componenti frontend/src/components altina eklendi/guncellendi.
