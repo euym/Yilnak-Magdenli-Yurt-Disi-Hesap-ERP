@@ -122,9 +122,20 @@ function App() {
   const [message, setMessage] = useState('');
 
   async function request(path, options = {}) {
-    const res = await fetch(API + path, { headers: { 'Content-Type': 'application/json' }, ...options });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'İşlem başarısız');
+    const res = await fetch(API + path, {
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options
+    });
+
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (err) {
+      throw new Error(`API JSON dönmedi. Endpoint: ${path}. HTTP ${res.status}. Backend adresi veya route kontrol edilmeli.`);
+    }
+
+    if (!res.ok || !json?.ok) throw new Error(json?.error || 'İşlem başarısız');
     return json.data;
   }
 
@@ -1020,12 +1031,41 @@ function AllowanceScreen({ defs, trips, allowances, allowance, setAllowance, req
 function Definitions({ defs, reload, request }) {
   const [tab, setTab] = useState('expenseDefinitions');
   const [form, setForm] = useState({});
-  async function add(e) {
+  const [editingId, setEditingId] = useState(null);
+
+  const expenseCategories = useMemo(() => {
+    const defaults = ['Yakıt', 'Yol', 'Belge', 'Operasyon', 'Personel', 'Diğer'];
+    const fromDefs = (defs.expenseDefinitions || []).map(x => x.category).filter(Boolean);
+    return [...new Set([...defaults, ...fromDefs])].sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [defs.expenseDefinitions]);
+
+  function resetForm() {
+    setForm({});
+    setEditingId(null);
+  }
+
+  function edit(item) {
+    setEditingId(item.id);
+    setForm({ ...item });
+  }
+
+  async function save(e) {
     e.preventDefault();
     try {
       let payload = {};
-      if (tab === 'allowanceDefinitions') payload = { name: form.name, domestic_daily_amount: form.domestic_daily_amount, domestic_currency: form.domestic_currency || 'TRY', abroad_daily_amount: form.abroad_daily_amount, abroad_currency: form.abroad_currency || 'EUR', is_active: form.is_active !== false };
-      if (tab === 'expenseDefinitions') payload = { name: form.name, category: form.category, default_currency: form.default_currency || 'TRY' };
+      if (tab === 'allowanceDefinitions') payload = {
+        name: form.name,
+        domestic_daily_amount: form.domestic_daily_amount,
+        domestic_currency: form.domestic_currency || 'TRY',
+        abroad_daily_amount: form.abroad_daily_amount,
+        abroad_currency: form.abroad_currency || 'EUR',
+        is_active: form.is_active !== false
+      };
+      if (tab === 'expenseDefinitions') payload = {
+        name: form.name,
+        category: form.category,
+        default_currency: form.default_currency || 'TRY'
+      };
       if (tab === 'projects') payload = { name: form.name };
       if (tab === 'drivers') payload = { name: form.name };
       if (tab === 'tractors') payload = { plate: form.plate, info: form.info };
@@ -1034,17 +1074,61 @@ function Definitions({ defs, reload, request }) {
       if (tab === 'escortVehicles') payload = { plate: form.plate, info: form.info };
       if (tab === 'countries') payload = { name: form.name };
       if (tab === 'cities') payload = { country_id: form.country_id, name: form.name };
-      await request('/definitions/' + tab, { method: 'POST', body: JSON.stringify(payload) });
-      setForm({}); await reload(); alert('Eklendi');
-    } catch (err) { alert('Eklenemedi: ' + err.message); }
+
+      const url = editingId ? `/definitions/${tab}/${editingId}` : `/definitions/${tab}`;
+      const method = editingId ? 'PUT' : 'POST';
+
+      await request(url, { method, body: JSON.stringify(payload) });
+      resetForm();
+      await reload();
+      alert(editingId ? 'Güncellendi' : 'Eklendi');
+    } catch (err) {
+      alert((editingId ? 'Güncellenemedi: ' : 'Eklenemedi: ') + err.message);
+    }
   }
-  async function remove(id) { if (!confirm('Silinsin mi?')) return; await request(`/definitions/${tab}/${id}`, { method: 'DELETE' }); await reload(); }
+
+  async function remove(id) {
+    if (!confirm('Silinsin mi?')) return;
+    try {
+      await request(`/definitions/${tab}/${id}`, { method: 'DELETE' });
+      if (editingId === id) resetForm();
+      await reload();
+      alert('Silindi');
+    } catch (err) {
+      alert('Silinemedi: ' + err.message);
+    }
+  }
+
   const list = defs[tab] || [];
-  return <div className="card"><h2>Tanımlar</h2><div className="defTabs">{defTabs.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setForm({}); }}>{label}</button>)}</div>
-    <form className="definitionForm" onSubmit={add}>
-      {['projects', 'drivers', 'escorts', 'countries'].includes(tab) && <input required placeholder="Ad / Tanım" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />}
-      {['tractors', 'trailers', 'escortVehicles'].includes(tab) && <><input required placeholder="Plaka" value={form.plate || ''} onChange={e => setForm({ ...form, plate: e.target.value })} /><input placeholder="Bilgiler" value={form.info || ''} onChange={e => setForm({ ...form, info: e.target.value })} /></>}
-      {tab === 'cities' && <><select required value={form.country_id || ''} onChange={e => setForm({ ...form, country_id: e.target.value })}><option value="">Ülke seç</option>{defs.countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input required placeholder="Şehir adı" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /></>}
+
+  return <div className="card">
+    <h2>Tanımlar</h2>
+    <p className="hint">Masraf kalemleri ve kategorileri buradan eklenir, düzenlenir ve silinir.</p>
+
+    <div className="defTabs">
+      {defTabs.map(([key, label]) => (
+        <button key={key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); resetForm(); }}>{label}</button>
+      ))}
+    </div>
+
+    <form className="definitionForm" onSubmit={save}>
+      {['projects', 'drivers', 'escorts', 'countries'].includes(tab) && (
+        <input required placeholder="Ad / Tanım" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
+      )}
+
+      {['tractors', 'trailers', 'escortVehicles'].includes(tab) && <>
+        <input required placeholder="Plaka" value={form.plate || ''} onChange={e => setForm({ ...form, plate: e.target.value })} />
+        <input placeholder="Bilgiler" value={form.info || ''} onChange={e => setForm({ ...form, info: e.target.value })} />
+      </>}
+
+      {tab === 'cities' && <>
+        <select required value={form.country_id || ''} onChange={e => setForm({ ...form, country_id: e.target.value })}>
+          <option value="">Ülke seç</option>
+          {defs.countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <input required placeholder="Şehir adı" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
+      </>}
+
       {tab === 'allowanceDefinitions' && <>
         <input required placeholder="Tanım adı örn. Standart Harcırah" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
         <input required type="number" step="0.01" placeholder="Yurt içi günlük tutar" value={form.domestic_daily_amount || ''} onChange={e => setForm({ ...form, domestic_daily_amount: e.target.value })} />
@@ -1052,9 +1136,45 @@ function Definitions({ defs, reload, request }) {
         <input required type="number" step="0.01" placeholder="Yurt dışı günlük tutar" value={form.abroad_daily_amount || ''} onChange={e => setForm({ ...form, abroad_daily_amount: e.target.value })} />
         <select value={form.abroad_currency || 'EUR'} onChange={e => setForm({ ...form, abroad_currency: e.target.value })}><option>EUR</option><option>TRY</option><option>USD</option></select>
       </>}
-      {tab === 'expenseDefinitions' && <><input required placeholder="Masraf adı örn. Mazot" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /><select required value={form.category || ''} onChange={e => setForm({ ...form, category: e.target.value })}><option value="">Kategori seç</option><option>Yakıt</option><option>Yol</option><option>Belge</option><option>Operasyon</option><option>Personel</option><option>Diğer</option></select><select value={form.default_currency || 'TRY'} onChange={e => setForm({ ...form, default_currency: e.target.value })}><option>TRY</option><option>EUR</option><option>USD</option></select></>}
-      <button className="primary">Ekle</button>
-    </form><div className="definitionList">{list.map(item => <div key={item.id}><span>{item.name || item.plate} {item.category ? `- ${item.category}` : ''} {item.default_currency ? `- ${item.default_currency}` : ''} {item.info ? `- ${item.info}` : ''}</span><button onClick={() => remove(item.id)}>Sil</button></div>)}</div></div>;
+
+      {tab === 'expenseDefinitions' && <>
+        <input required placeholder="Masraf adı örn. Mazot" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
+
+        <input
+          required
+          list="expense-category-list"
+          placeholder="Kategori yaz / seç"
+          value={form.category || ''}
+          onChange={e => setForm({ ...form, category: e.target.value })}
+        />
+        <datalist id="expense-category-list">
+          {expenseCategories.map(cat => <option key={cat} value={cat} />)}
+        </datalist>
+
+        <select value={form.default_currency || 'TRY'} onChange={e => setForm({ ...form, default_currency: e.target.value })}>
+          <option>TRY</option><option>EUR</option><option>USD</option>
+        </select>
+      </>}
+
+      <button className="primary">{editingId ? 'Güncelle' : 'Ekle'}</button>
+      {editingId && <button type="button" onClick={resetForm}>Vazgeç</button>}
+    </form>
+
+    <div className="definitionList">
+      {list.map(item => <div key={item.id}>
+        <span>
+          {item.name || item.plate}
+          {item.category ? ` - ${item.category}` : ''}
+          {item.default_currency ? ` - ${item.default_currency}` : ''}
+          {item.info ? ` - ${item.info}` : ''}
+        </span>
+        <div className="definitionActions">
+          <button type="button" onClick={() => edit(item)}>Düzenle</button>
+          <button type="button" onClick={() => remove(item.id)}>Sil</button>
+        </div>
+      </div>)}
+    </div>
+  </div>;
 }
 
 function LabeledDate({ label, value, onChange }) {

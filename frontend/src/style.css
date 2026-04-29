@@ -533,3 +533,14 @@ th { background: #f7fbff; color: #102f4b; }
 .ghost:hover {
   background: #f8fafc;
 }
+
+
+.definitionActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.definitionActions button {
+  padding: 8px 12px;
+}

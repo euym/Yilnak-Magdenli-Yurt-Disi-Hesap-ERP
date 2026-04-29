@@ -71,6 +71,55 @@ app.get('/definitions', async (_, res) => {
   } catch (err) { fail(res, 500, err.message); }
 });
 
+
+app.post('/definitions/:kind', async (req, res) => {
+  try {
+    const { kind } = req.params;
+    const table = tableMap[kind];
+    if (!table) return fail(res, 400, 'Geçersiz tanım türü');
+
+    const payload = cleanPayload(kind, req.body || {});
+    const { data, error } = await supabase.from(table).insert(payload).select('*').single();
+    if (error) throw error;
+
+    res.json(ok(data));
+  } catch (err) {
+    fail(res, 500, err.message);
+  }
+});
+
+app.put('/definitions/:kind/:id', async (req, res) => {
+  try {
+    const { kind, id } = req.params;
+    const table = tableMap[kind];
+    if (!table) return fail(res, 400, 'Geçersiz tanım türü');
+
+    const payload = cleanPayload(kind, req.body || {});
+    const { data, error } = await supabase.from(table).update(payload).eq('id', id).select('*').single();
+    if (error) throw error;
+
+    res.json(ok(data));
+  } catch (err) {
+    fail(res, 500, err.message);
+  }
+});
+
+app.delete('/definitions/:kind/:id', async (req, res) => {
+  try {
+    const { kind, id } = req.params;
+    const table = tableMap[kind];
+    if (!table) return fail(res, 400, 'Geçersiz tanım türü');
+
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) throw error;
+
+    res.json(ok({ id, deleted: true }));
+  } catch (err) {
+    fail(res, 500, err.message);
+  }
+});
+
+
 app.get('/trips', async (_, res) => {
   const { data, error } = await supabase.from('erp_trips').select('*').order('created_at', { ascending: false });
   if (error) return fail(res, 400, error.message);
