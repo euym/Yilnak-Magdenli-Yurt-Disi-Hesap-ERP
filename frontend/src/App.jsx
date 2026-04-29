@@ -573,7 +573,7 @@ function SummaryBox({ title, children, tone = '' }) {
 
 function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const [selectedTripId, setSelectedTripId] = useState('');
-  const [mergeOther, setMergeOther] = useState(false);
+  const [selectedOtherIds, setSelectedOtherIds] = useState([]);
   const selectedTrip = trips.find(t => t.id === selectedTripId) || null;
   const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
 
@@ -585,12 +585,18 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const loadedFuel = tractorFuel.filter(x => x.fuel_status === 'Dolu');
 
   const tolls = tripExpenses.filter(isTollExpense);
+  const tractorTolls = tolls.filter(x => vehicleGroup(x) === 'tractor');
+  const escortTolls = tolls.filter(x => vehicleGroup(x) === 'escort');
   const roadDocs = tripExpenses.filter(isRoadDocExpense);
   const otherItems = tripExpenses.filter(x => !isFuelExpense(x) && !isTollExpense(x) && !isRoadDocExpense(x));
 
   const currencies = Array.from(new Set(['TRY', 'EUR', 'USD', ...tripExpenses.map(currencyOf)]));
   const totalFuelLiters = sumLiter(fuel);
-  const fuelPercent = totalTripKm > 0 ? (totalFuelLiters / totalTripKm) * 100 : 0;
+  const tractorFuelLiters = sumLiter(tractorFuel);
+  const emptyPercent = tractorFuelLiters > 0 ? (sumLiter(emptyFuel) / tractorFuelLiters) * 100 : 0;
+  const loadedPercent = tractorFuelLiters > 0 ? (sumLiter(loadedFuel) / tractorFuelLiters) * 100 : 0;
+  const tractorAverage = totalTripKm > 0 ? (tractorFuelLiters / totalTripKm) * 100 : 0;
+  const selectedOtherItems = otherItems.filter(x => selectedOtherIds.includes(x.id));
 
   function totalsByCurrency(items) {
     return currencies
@@ -603,9 +609,24 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
     return rows.length ? rows.map(x => formatMoney(x.amount, x.currency)).join(' / ') : '0';
   }
 
-  function itemRows(items) {
-    if (!items.length) return <tr><td colSpan="7">Kayıt yok.</td></tr>;
-    return items.map(x => <tr key={x.id}><td>{x.expense_name || '-'}</td><td>{x.category || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.country_name || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>);
+  function percent(value) {
+    return `${numberValue(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`;
+  }
+
+  function regionItems(items, region) {
+    return items.filter(x => regionGroup(x) === region);
+  }
+
+  function toggleOther(id) {
+    setSelectedOtherIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function otherRows() {
+    if (!otherItems.length) return <tr><td colSpan="8">Kayıt yok.</td></tr>;
+    return otherItems.map(x => <tr key={x.id}>
+      <td><input type="checkbox" checked={selectedOtherIds.includes(x.id)} onChange={() => toggleOther(x.id)} /></td>
+      <td>{x.expense_name || '-'}</td><td>{x.category || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.country_name || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td>
+    </tr>);
   }
 
   return <div className="layout">
@@ -614,78 +635,113 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
       <Select label="Sefer seç" value={selectedTripId} onChange={setSelectedTripId} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
       <div className="summaryGrid">
         <div><span>Toplam Sefer KM</span><b>{totalTripKm.toLocaleString('tr-TR')}</b></div>
-        <div><span>Toplam Yakıt LT</span><b>{formatNumber(totalFuelLiters)}</b></div>
-        <div><span>Yakıt Ortalama</span><b>{fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%</b></div>
+        <div><span>Çekici Yakıt LT</span><b>{formatNumber(tractorFuelLiters)}</b></div>
+        <div><span>Öncü Yakıt LT</span><b>{formatNumber(sumLiter(escortFuel))}</b></div>
         <div><span>Kayıt Sayısı</span><b>{tripExpenses.length}</b></div>
       </div>
-      <p className="hint">Veri girişi yoktur. Tüm bilgiler Masraf Girişi kayıtlarından otomatik gelir.</p>
+      <p className="hint">Para birimi sabit değildir. Girilen masraf hangi para birimindeyse özetlerde o şekilde gruplanır.</p>
     </aside>
 
     <main className="card">
       <div className="screenHeader">
         <div>
           <h2>Masraf Özeti</h2>
-          <p>Ana masraf başlıkları ERP formatında özetlenir.</p>
+          <p>10 tablo; çekici, öncü, yakıt, otoyol, yol belgesi ve diğer masraflar ERP formatında özetlenir.</p>
         </div>
       </div>
 
       {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar 0 değerlerle gösteriliyor.</div>}
 
+      <h3 className="summaryMainTitle">Çekici Yakıt</h3>
       <div className="cleanSummaryGrid">
-        <section className="cleanSummaryCard">
-          <h3>Yakıt Özeti</h3>
-          <div className="summaryRows">
-            <ExpenseSummaryRow label="Çekici Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} />
-            <ExpenseSummaryRow label="Çekici Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} />
-            <ExpenseSummaryRow label="Çekici Yakıt Toplam (lt)" value={formatNumber(sumLiter(tractorFuel))} highlight />
-            <ExpenseSummaryRow label="Öncü Yakıt Toplam (lt)" value={formatNumber(sumLiter(escortFuel))} highlight />
-            <ExpenseSummaryRow label="Toplam Yakıt (lt)" value={formatNumber(totalFuelLiters)} highlight />
-            <ExpenseSummaryRow label="Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
-            <ExpenseSummaryRow label="Yakıt Tutar Toplamı" value={moneyList(fuel)} highlight />
-          </div>
-        </section>
+        <SummaryBox title="1. Boş Yakıt">
+          <ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(regionItems(emptyFuel, 'domestic')))} />
+          <ExpenseSummaryRow label="Boş Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(emptyFuel, 'domestic'))} />
+          <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(emptyFuel, 'abroad')))} />
+          <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt Tutarı" value={moneyList(regionItems(emptyFuel, 'abroad'))} />
+          <ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} highlight />
+          <ExpenseSummaryRow label="Toplam Boş Yakıt Maliyeti" value={moneyList(emptyFuel)} highlight />
+          <ExpenseSummaryRow label="Boş Yakıt (%)" value={percent(emptyPercent)} highlight />
+        </SummaryBox>
 
-        <section className="cleanSummaryCard">
-          <h3>Ücretli Karayolu</h3>
-          <div className="summaryRows">
-            <ExpenseSummaryRow label="Çekici Ücretli Karayolu" value={moneyList(tolls.filter(x => vehicleGroup(x) === 'tractor'))} />
-            <ExpenseSummaryRow label="Öncü Ücretli Karayolu" value={moneyList(tolls.filter(x => vehicleGroup(x) === 'escort'))} />
-            <ExpenseSummaryRow label="Yurt İçi Toplam" value={moneyList(tolls.filter(x => regionGroup(x) === 'domestic'))} />
-            <ExpenseSummaryRow label="Yurt Dışı Toplam" value={moneyList(tolls.filter(x => regionGroup(x) === 'abroad'))} />
-            <ExpenseSummaryRow label="Toplam" value={moneyList(tolls)} highlight />
-          </div>
-        </section>
+        <SummaryBox title="2. Dolu Yakıt">
+          <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(regionItems(loadedFuel, 'domestic')))} />
+          <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(loadedFuel, 'domestic'))} />
+          <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(loadedFuel, 'abroad')))} />
+          <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt Tutarı" value={moneyList(regionItems(loadedFuel, 'abroad'))} />
+          <ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} highlight />
+          <ExpenseSummaryRow label="Toplam Dolu Yakıt Maliyeti" value={moneyList(loadedFuel)} highlight />
+          <ExpenseSummaryRow label="Dolu Yakıt (%)" value={percent(loadedPercent)} highlight />
+        </SummaryBox>
 
-        <section className="cleanSummaryCard">
-          <h3>Yol Belgesi</h3>
-          <div className="summaryRows">
-            <ExpenseSummaryRow label="Yurt İçi Yol Belgesi" value={moneyList(roadDocs.filter(x => regionGroup(x) === 'domestic'))} />
-            <ExpenseSummaryRow label="Yurt Dışı Yol Belgesi" value={moneyList(roadDocs.filter(x => regionGroup(x) === 'abroad'))} />
-            <ExpenseSummaryRow label="Toplam" value={moneyList(roadDocs)} highlight />
-          </div>
-        </section>
+        <SummaryBox title="3. Çekici Yakıt Ortalaması">
+          <ExpenseSummaryRow label="Çekici Yakıt Ortalaması (%)" value={percent(tractorAverage)} highlight />
+          <ExpenseSummaryRow label="Çekici Toplam Yakıt (lt)" value={formatNumber(tractorFuelLiters)} />
+          <ExpenseSummaryRow label="Çekici Toplam Yakıt Maliyeti" value={moneyList(tractorFuel)} highlight />
+          <ExpenseSummaryRow label="Dolu + Boş Maliyet" value={moneyList([...loadedFuel, ...emptyFuel])} highlight />
+        </SummaryBox>
 
-        <section className="cleanSummaryCard wide">
+        <SummaryBox title="4. Öncü Yakıt">
+          <ExpenseSummaryRow label="Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(regionItems(escortFuel, 'domestic')))} />
+          <ExpenseSummaryRow label="Yurt İçi Yakıt Tutarı" value={moneyList(regionItems(escortFuel, 'domestic'))} />
+          <ExpenseSummaryRow label="Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(regionItems(escortFuel, 'abroad')))} />
+          <ExpenseSummaryRow label="Yurt Dışı Yakıt Tutarı" value={moneyList(regionItems(escortFuel, 'abroad'))} />
+          <ExpenseSummaryRow label="Yakıt Toplam" value={moneyList(escortFuel)} highlight />
+        </SummaryBox>
+
+        <SummaryBox title="5. Yakıt Maliyet">
+          <ExpenseSummaryRow label="Yurt İçi Yakıt" value={moneyList(regionItems(fuel, 'domestic'))} />
+          <ExpenseSummaryRow label="Yurt Dışı Yakıt" value={moneyList(regionItems(fuel, 'abroad'))} />
+          <ExpenseSummaryRow label="Çekici Yakıt Toplam" value={moneyList(tractorFuel)} />
+          <ExpenseSummaryRow label="Öncü Yakıt Toplam" value={moneyList(escortFuel)} />
+          <ExpenseSummaryRow label="Yakıt Toplam" value={moneyList(fuel)} highlight />
+        </SummaryBox>
+
+        <SummaryBox title="6. Çekici Ücretli Otoyol">
+          <ExpenseSummaryRow label="Yurt İçi Otoyol Geçiş" value={moneyList(regionItems(tractorTolls, 'domestic'))} />
+          <ExpenseSummaryRow label="Yurt Dışı Otoyol Geçiş" value={moneyList(regionItems(tractorTolls, 'abroad'))} />
+          <ExpenseSummaryRow label="Otoyol Geçiş Toplam" value={moneyList(tractorTolls)} highlight />
+        </SummaryBox>
+
+        <SummaryBox title="7. Öncü Ücretli Otoyol">
+          <ExpenseSummaryRow label="Yurt İçi Otoyol Geçiş" value={moneyList(regionItems(escortTolls, 'domestic'))} />
+          <ExpenseSummaryRow label="Yurt Dışı Otoyol Geçiş" value={moneyList(regionItems(escortTolls, 'abroad'))} />
+          <ExpenseSummaryRow label="Otoyol Geçiş Toplam" value={moneyList(escortTolls)} highlight />
+        </SummaryBox>
+
+        <SummaryBox title="8. Ücretli Otoyol Maliyet">
+          <ExpenseSummaryRow label="Yurt İçi Otoyol Geçiş" value={moneyList(regionItems(tolls, 'domestic'))} />
+          <ExpenseSummaryRow label="Yurt Dışı Otoyol Geçiş" value={moneyList(regionItems(tolls, 'abroad'))} />
+          <ExpenseSummaryRow label="Otoyol Geçiş Toplam" value={moneyList(tolls)} highlight />
+        </SummaryBox>
+
+        <SummaryBox title="9. Yol Belgesi">
+          <ExpenseSummaryRow label="Yol Belge Maliyeti - Yurt İçi" value={moneyList(regionItems(roadDocs, 'domestic'))} />
+          <ExpenseSummaryRow label="Yol Belge Maliyeti - Yurt Dışı" value={moneyList(regionItems(roadDocs, 'abroad'))} />
+          <ExpenseSummaryRow label="Yol Belgesi Toplam Maliyet" value={moneyList(roadDocs)} highlight />
+        </SummaryBox>
+
+        <section className="expenseSummaryBox wide">
           <div className="sectionTitleRow">
-            <h3>Diğer Masraflar</h3>
-            <label className="smallSwitch"><input type="checkbox" checked={mergeOther} onChange={e => setMergeOther(e.target.checked)} /> Birleştir</label>
+            <h3>10. Diğer Masraflar</h3>
+            <button className="ghost" type="button" onClick={() => setSelectedOtherIds(otherItems.map(x => x.id))}>Tümünü seç</button>
           </div>
-
-          {mergeOther ? <div className="summaryRows">
-            <ExpenseSummaryRow label="Yurt İçi Diğer Masraflar" value={moneyList(otherItems.filter(x => regionGroup(x) === 'domestic'))} />
-            <ExpenseSummaryRow label="Yurt Dışı Diğer Masraflar" value={moneyList(otherItems.filter(x => regionGroup(x) === 'abroad'))} />
-            <ExpenseSummaryRow label="Diğer Masraflar Toplam" value={moneyList(otherItems)} highlight />
-          </div> : <div className="tableWrap">
+          <div className="tableWrap">
             <table>
-              <thead><tr><th>Masraf</th><th>Kategori</th><th>Araç</th><th>Ülke</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead>
-              <tbody>{itemRows(otherItems)}</tbody>
+              <thead><tr><th>Seç</th><th>Masraf</th><th>Kategori</th><th>Araç</th><th>Ülke</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead>
+              <tbody>{otherRows()}</tbody>
             </table>
-          </div>}
+          </div>
+          <div className="summaryRows otherMergeTotal">
+            <ExpenseSummaryRow label="Seçili Diğer Masraflar Birleşik Toplam" value={moneyList(selectedOtherItems)} highlight />
+            <ExpenseSummaryRow label="Tüm Diğer Masraflar Toplam" value={moneyList(otherItems)} />
+          </div>
         </section>
       </div>
     </main>
   </div>;
 }
+
 
 function moneyByCurrency(items, amountKey = 'amount', currencyKey = 'currency') {
   return (items || []).reduce((acc, item) => {
