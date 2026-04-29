@@ -1,0 +1,6 @@
+MASRAF BEYAZ EKRAN FINAL FIX
+
+- Masraf sekmesinde sefer seçince beyaz ekran oluşmasını engellemek için Masraf ekranı güvenli hale getirildi.
+- Eksik/boş tarih, masraf, kategori, ülke, para birimi alanlarında ekran çökmez.
+- Girilen Masraflar seçili sefere göre filtrelenir.
+- Build testi yapıldı: npm run build başarılı.
