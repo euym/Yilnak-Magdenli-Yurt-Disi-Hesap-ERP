@@ -1,0 +1,66 @@
+/* YILNAK ERP - SADE MASRAF OZETI OVERRIDE */
+
+/* Masraf ozeti alanindaki sari/kirmizi renkleri tamamen kapatir */
+#root .bg-yellow-100,
+#root .bg-yellow-50,
+#root .bg-amber-100,
+#root .bg-amber-50,
+#root .bg-orange-100,
+#root .bg-orange-50,
+#root .bg-red-100,
+#root .bg-red-50,
+#root [class*="bg-yellow"],
+#root [class*="bg-amber"],
+#root [class*="bg-orange"],
+#root [class*="bg-red"] {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+}
+
+#root .text-rose-600,
+#root .text-red-600,
+#root .text-pink-600,
+#root .text-orange-600,
+#root .text-yellow-600,
+#root [class*="text-rose"],
+#root [class*="text-red"],
+#root [class*="text-pink"],
+#root [class*="text-orange"],
+#root [class*="text-yellow"] {
+  color: #111827 !important;
+}
+
+#root .border-yellow-300,
+#root .border-yellow-200,
+#root .border-amber-300,
+#root .border-amber-200,
+#root .border-orange-300,
+#root .border-red-300,
+#root [class*="border-yellow"],
+#root [class*="border-amber"],
+#root [class*="border-orange"],
+#root [class*="border-red"] {
+  border-color: #e5e7eb !important;
+}
+
+/* Masraf ozeti kart basliklarini ERP uyumlu sade tablo basligi yapar */
+#root h3,
+#root h4 {
+  color: #111827 !important;
+}
+
+/* Tablo toplam satirlarindaki acik sari tonlari da temizlenir */
+#root tr,
+#root td,
+#root th,
+#root .rounded-xl,
+#root .rounded-2xl {
+  border-color: #e5e7eb !important;
+}
+
+/* Sadece baslik bolumleri sade beyaz kalsin */
+#root .rounded-xl > div:first-child,
+#root .rounded-2xl > div:first-child {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
