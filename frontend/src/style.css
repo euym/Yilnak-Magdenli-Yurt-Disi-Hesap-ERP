@@ -20,7 +20,7 @@ input:focus, select:focus { outline: 2px solid #b9d6ff; border-color: #2674e8; }
 .readonly { min-height: 50px; padding: 6px 0; color: #36557b; }
 .readonly span { display: block; font-size: 16px; margin-bottom: 4px; }
 .readonly b { display: block; color: #001b3d; font-size: 20px; }
-.message { background: #fff8df; border: 1px solid #f3df91; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+.message { background: #fff; border: 1px solid #f3df91; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
 .tripItem { border-bottom: 1px solid #e6ecf3; padding: 10px 0; }
 .tripItem span { display: block; color: #667085; margin-top: 4px; }
 .defTabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
@@ -68,7 +68,7 @@ th { background: #f7fbff; color: #102f4b; }
 .balanceBox b { font-size: 15px; }
 .balanceBox span { font-size: 22px; font-weight: 800; }
 .balanceBox.ok { background: #ecfdf5; border-color: #86efac; }
-.balanceBox.warn { background: #fff7ed; border-color: #fdba74; }
+.balanceBox.warn { background: #fff; border-color: #fdba74; }
 .balanceBox.closed { background: #eff6ff; border-color: #93c5fd; }
 .hint { font-size: 12px; color: #64748b; margin-top: 10px; }
 
@@ -84,13 +84,13 @@ th { background: #f7fbff; color: #102f4b; }
   grid-column: 1 / -1;
   text-align: center;
   font-weight: 800;
-  color: #e11d48;
+  color: #111827;
   padding: 8px;
   border-bottom: 2px solid #111;
   background: #fff;
 }
 .allowanceTable label {
-  background: #fffecb;
+  background: #fff;
   border-right: 2px solid #111;
   border-bottom: 1px solid #111;
   padding: 8px;
@@ -101,10 +101,10 @@ th { background: #f7fbff; color: #102f4b; }
   border: 0;
   border-bottom: 1px solid #111;
   padding: 8px;
-  background: #fffecb;
+  background: #fff;
 }
 .allowanceTable .redLabel {
-  color: #e11d48;
+  color: #111827;
   background: #fff;
 }
 .inlineMoney {
@@ -123,7 +123,7 @@ th { background: #f7fbff; color: #102f4b; }
   background: #fff;
 }
 .inlineMoney b {
-  color: #e11d48;
+  color: #111827;
   text-align: right;
   padding-right: 8px;
 }
@@ -157,7 +157,7 @@ th { background: #f7fbff; color: #102f4b; }
   margin: 4px 0;
 }
 .currencyBalance.ok { background: #ecfdf5; border-color: #86efac; }
-.currencyBalance.warn { background: #fff7ed; border-color: #fdba74; }
+.currencyBalance.warn { background: #fff; border-color: #fdba74; }
 .currencyBalance.closed { background: #eff6ff; border-color: #93c5fd; }
 
 .allowanceTable input[readonly] {
@@ -210,7 +210,7 @@ th { background: #f7fbff; color: #102f4b; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #dbe3ee;
   border-radius: 14px;
   padding: 10px 12px;
@@ -234,7 +234,7 @@ th { background: #f7fbff; color: #102f4b; }
 
 
 .allowanceInfoCard {
-  background: #ffffff;
+  background: #fff;
 }
 .allowancePersonHeader {
   display: flex;
@@ -303,7 +303,7 @@ th { background: #f7fbff; color: #102f4b; }
   text-align: right;
 }
 .infoRows .totalRow {
-  background: #fff7ed;
+  background: #fff;
 }
 .infoRows .totalRow b {
   color: #c2410c;
@@ -324,18 +324,18 @@ th { background: #f7fbff; color: #102f4b; }
   border: 1px solid #dbe3ee;
   border-radius: 16px;
   overflow: hidden;
-  background: #ffffff;
+  background: #fff;
 }
 .expenseSummaryBox h3 {
   margin: 0;
   padding: 12px 14px;
-  background: #fff7c2;
-  color: #e11d48;
+  background: #fff;
+  color: #111827;
   border-bottom: 1px solid #dbe3ee;
   text-align: center;
 }
 .expenseSummaryBox.fuel h3 {
-  background: #fff3c4;
+  background: #fff;
 }
 .expenseSummaryBox.escort h3 {
   background: #d9f3ff;
@@ -366,7 +366,7 @@ th { background: #f7fbff; color: #102f4b; }
   font-size: 13px;
 }
 .summaryRow.highlight {
-  background: #fffaf0;
+  background: #fff;
 }
 .summaryRow.highlight b {
   color: #c2410c;
@@ -379,7 +379,7 @@ th { background: #f7fbff; color: #102f4b; }
 
 
 .reportSection {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 16px;
@@ -467,7 +467,7 @@ th { background: #f7fbff; color: #102f4b; }
 .cleanSummaryCard {
   border: 1px solid #dbe3ee;
   border-radius: 18px;
-  background: #ffffff;
+  background: #fff;
   overflow: hidden;
 }
 .cleanSummaryCard h3 {
@@ -522,7 +522,7 @@ th { background: #f7fbff; color: #102f4b; }
 }
 .ghost {
   border: 1px solid #cbd5e1;
-  background: #ffffff;
+  background: #fff;
   color: #334155;
   border-radius: 10px;
   padding: 8px 12px;
