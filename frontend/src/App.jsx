@@ -363,6 +363,7 @@ function App() {
         <button className={screen === 'report' ? 'active' : ''} onClick={() => setScreen('report')}>Rapor</button>
         <button className={screen === 'expenseSummary' ? 'active' : ''} onClick={() => setScreen('expenseSummary')}>Masraf Özeti</button>
         <button className={screen === 'trip' ? 'active' : ''} onClick={() => setScreen('trip')}>Sefer Bilgileri</button>
+        <button className={screen === 'allowances' ? 'active' : ''} onClick={() => setScreen('allowances')}>Harcırah</button>
         <button className={screen === 'advances' ? 'active' : ''} onClick={() => setScreen('advances')}>Avans</button>
         <button className={screen === 'expenses' ? 'active' : ''} onClick={() => setScreen('expenses')}>Masraf</button>
         <button className={screen === 'definitions' ? 'active' : ''} onClick={() => setScreen('definitions')}>Tanımlar</button>
@@ -372,6 +373,7 @@ function App() {
       {screen === 'report' && <ReportScreen defs={defs} trips={trips} expenses={expenses} advances={advances} allowances={allowances} />}
       {screen === 'expenseSummary' && <ExpenseSummaryScreen defs={defs} trips={trips} expenses={expenses} />}
       {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} editingTripId={editingTripId} setField={setField} saveTrip={saveTrip} editTrip={editTrip} deleteTrip={deleteTrip} cancelTripEdit={cancelTripEdit} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} tripAllowanceDays={tripAllowanceDays} escortTripAllowanceDays={escortTripAllowanceDays} citiesFor={citiesFor} />}
+      {screen === 'allowances' && <AllowanceScreen defs={defs} trips={trips} allowances={allowances} allowance={allowance} setAllowance={setAllowance} request={request} reload={loadAll} />}
       {screen === 'advances' && <AdvanceScreen trips={trips} advances={advances} expenses={expenses} advance={advance} setAdvance={setAdvance} request={request} reload={loadAll} />}
       {screen === 'expenses' && <ExpenseScreen defs={defs} trips={trips} expenses={expenses} expense={expense} setExpense={setExpense} request={request} reload={loadAll} />}
       {screen === 'definitions' && <Definitions defs={defs} reload={loadAll} request={request} />}
@@ -397,46 +399,6 @@ function ReportScreen({ defs, trips, expenses, advances, allowances }) {
   const [selectedTripId, setSelectedTripId] = useState('');
   const selectedTrip = trips.find(t => t.id === selectedTripId) || null;
   const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
-
-  const activeAllowanceDef = (defs.allowanceDefinitions || []).find(x => x.is_active) || (defs.allowanceDefinitions || [])[0] || null;
-  const allowanceDaily = {
-    domestic: activeAllowanceDef?.domestic_daily_amount || 0,
-    abroad: activeAllowanceDef?.abroad_daily_amount || 0
-  };
-  const allowanceCurrency = {
-    domestic: activeAllowanceDef?.domestic_currency || 'TRY',
-    abroad: activeAllowanceDef?.abroad_currency || 'EUR'
-  };
-  const tractorDriverName = (defs.drivers || []).find(d => d.id === selectedTrip?.driver_id)?.name || '';
-  const escortDriverName = (defs.escorts || []).find(e => e.id === selectedTrip?.escort_id)?.name || '';
-  const tractorAllowanceDates = {
-    domestic_start_date: formatDateForInput(selectedTrip?.domestic_start_date),
-    domestic_exit_date: formatDateForInput(selectedTrip?.domestic_exit_date),
-    domestic_return_date: formatDateForInput(selectedTrip?.domestic_return_date),
-    domestic_end_date: formatDateForInput(selectedTrip?.domestic_end_date),
-    abroad_entry_date: formatDateForInput(selectedTrip?.abroad_entry_date),
-    abroad_exit_date: formatDateForInput(selectedTrip?.abroad_exit_date)
-  };
-  const escortGoesAbroad = selectedTrip?.escort_goes_abroad !== false;
-  const escortAllowanceDates = {
-    domestic_start_date: formatDateForInput(selectedTrip?.escort_domestic_start_date || selectedTrip?.domestic_start_date),
-    domestic_exit_date: formatDateForInput(selectedTrip?.escort_domestic_exit_date || selectedTrip?.domestic_exit_date),
-    domestic_return_date: formatDateForInput(selectedTrip?.escort_domestic_return_date || selectedTrip?.domestic_return_date),
-    domestic_end_date: formatDateForInput(selectedTrip?.escort_domestic_end_date || selectedTrip?.domestic_end_date),
-    abroad_entry_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_entry_date || selectedTrip?.abroad_entry_date) : '',
-    abroad_exit_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_exit_date || selectedTrip?.abroad_exit_date) : ''
-  };
-  const tractorAllowanceDays = calcAllowanceDaysFromDates(tractorAllowanceDates);
-  const escortAllowanceDays = escortGoesAbroad ? calcAllowanceDaysFromDates(escortAllowanceDates) : {
-    domesticDays: baseDaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date) + countSundaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date),
-    abroadDays: 0
-  };
-  const allowanceTotals = {
-    tractorDomestic: tractorAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
-    tractorAbroad: tractorAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad),
-    escortDomestic: escortAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
-    escortAbroad: escortAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad)
-  };
   const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : [];
   const tripAllowances = selectedTripId ? allowances.filter(x => x.trip_id === selectedTripId) : [];
 
@@ -628,27 +590,13 @@ function TripScreen({ defs, trips, trip, editingTripId, setField, saveTrip, edit
 
 function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, reload }) {
   const [editingExpenseId, setEditingExpenseId] = useState(null);
-
-  const safeDefs = defs || {};
-  const expenseDefinitions = safeDefs.expenseDefinitions || [];
-  const countries = safeDefs.countries || [];
-  const safeTrips = trips || [];
-  const safeExpenses = expenses || [];
-  const currentExpense = expense || blankExpense;
-
-  const selectedDef = expenseDefinitions.find(x => x.id === currentExpense.expense_definition_id) || null;
+  const selectedDef = defs.expenseDefinitions.find(x => x.id === expense.expense_definition_id);
   const isFuel = selectedDef?.category === 'Yakıt';
-  const needsFuelStatus = isFuel && currentExpense.vehicle_type === 'Çekici';
+  const needsFuelStatus = isFuel && expense.vehicle_type === 'Çekici';
   const needsLiter = isFuel;
-
-  const selectedTripExpenses = currentExpense.trip_id
-    ? safeExpenses.filter(item => item.trip_id === currentExpense.trip_id)
-    : safeExpenses;
-
-  const summary = selectedTripExpenses.reduce((acc, item) => {
-    const amount = numberValue(item?.amount);
-    acc.total += amount;
-    if (item?.category === 'Yakıt') {
+  const summary = expenses.reduce((acc, item) => {
+    const amount = numberValue(item.amount); acc.total += amount;
+    if (item.category === 'Yakıt') {
       acc.fuel += amount;
       if (item.fuel_status === 'Boş') acc.emptyLiter += numberValue(item.liter);
       if (item.fuel_status === 'Dolu') acc.loadedLiter += numberValue(item.liter);
@@ -656,17 +604,11 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
     return acc;
   }, { total: 0, fuel: 0, emptyLiter: 0, loadedLiter: 0 });
 
-  function tripOptionLabel(t) {
-    const d = t?.created_at ? new Date(t.created_at) : null;
-    const dateText = d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('tr-TR') : '';
-    return `${t?.project_name || 'Projesiz'}${dateText ? ' - ' + dateText : ''}`;
-  }
-
   function setExpenseField(name, value) {
     setExpense(prev => {
-      const next = { ...(prev || blankExpense), [name]: value };
+      const next = { ...prev, [name]: value };
       if (name === 'expense_definition_id') {
-        const def = expenseDefinitions.find(x => x.id === value);
+        const def = defs.expenseDefinitions.find(x => x.id === value);
         next.currency = def?.default_currency || next.currency || 'TRY';
         if (def?.category !== 'Yakıt') { next.fuel_status = ''; next.liter = ''; }
       }
@@ -678,16 +620,16 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
   async function saveExpense(e) {
     e.preventDefault();
     try {
-      if (!currentExpense.trip_id) return alert('Sefer seçiniz.');
-      if (!currentExpense.expense_definition_id) return alert('Masraf türü seçiniz.');
-      if (!currentExpense.amount) return alert('Tutar giriniz.');
-      if (needsFuelStatus && !currentExpense.fuel_status) return alert('Çekici yakıtı için Boş/Dolu seçiniz.');
-      if (needsLiter && !currentExpense.liter) return alert('Yakıt için litre giriniz.');
+      if (!expense.trip_id) return alert('Sefer seçiniz.');
+      if (!expense.expense_definition_id) return alert('Masraf türü seçiniz.');
+      if (!expense.amount) return alert('Tutar giriniz.');
+      if (needsFuelStatus && !expense.fuel_status) return alert('Çekici yakıtı için Boş/Dolu seçiniz.');
+      if (needsLiter && !expense.liter) return alert('Yakıt için litre giriniz.');
 
       const payload = cleanEmptyValues({
-        ...currentExpense,
+        ...expense,
         city_id: null,
-        fuel_status: needsFuelStatus ? currentExpense.fuel_status : ''
+        fuel_status: needsFuelStatus ? expense.fuel_status : ''
       });
 
       if (editingExpenseId) {
@@ -696,7 +638,7 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
         await request('/expenses', { method: 'POST', body: JSON.stringify(payload) });
       }
       setEditingExpenseId(null);
-      setExpense({ ...blankExpense, trip_id: currentExpense.trip_id });
+      setExpense({ ...blankExpense, trip_id: expense.trip_id });
       await reload();
       alert(editingExpenseId ? 'Masraf güncellendi' : 'Masraf eklendi');
     } catch (err) {
@@ -729,7 +671,7 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
       await request(`/expenses/${item.id}`, { method: 'DELETE' });
       if (editingExpenseId === item.id) {
         setEditingExpenseId(null);
-        setExpense({ ...blankExpense, trip_id: currentExpense.trip_id });
+        setExpense({ ...blankExpense, trip_id: expense.trip_id });
       }
       await reload();
       alert('Masraf silindi');
@@ -741,7 +683,7 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
 
   function cancelExpenseEdit() {
     setEditingExpenseId(null);
-    setExpense({ ...blankExpense, trip_id: currentExpense.trip_id });
+    setExpense({ ...blankExpense, trip_id: expense.trip_id });
   }
 
   return <div className="layout">
@@ -754,38 +696,39 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
     <main className="card"><h2>{editingExpenseId ? 'Masraf Düzeltme' : 'Masraf Girişi'}</h2>
       <form onSubmit={saveExpense}>
         <div className="grid two">
-          <Select label="Sefer seç" value={currentExpense.trip_id} onChange={v => setExpenseField('trip_id', v)} options={safeTrips.map(t => ({ ...t, label: tripOptionLabel(t) }))} textKey="label" />
-          <Select label="Ülke" value={currentExpense.country_id} onChange={v => setExpenseField('country_id', v)} options={countries} textKey="name" />
-          <Select label="Masraf türü" value={currentExpense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={expenseDefinitions} textKey="name" />
+          <Select label="Sefer seç" value={expense.trip_id} onChange={v => setExpenseField('trip_id', v)} options={trips.map(t => ({ ...t, label: `${t.project_name || 'Projesiz'} - ${new Date(t.created_at).toLocaleDateString('tr-TR')}` }))} textKey="label" />
+          <Select label="Ülke" value={expense.country_id} onChange={v => setExpenseField('country_id', v)} options={defs.countries} textKey="name" />
+          <Select label="Masraf türü" value={expense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={defs.expenseDefinitions} textKey="name" />
           <ReadOnly label="Kategori" value={selectedDef?.category || '-'} />
-          <select value={currentExpense.vehicle_type || ''} onChange={e => setExpenseField('vehicle_type', e.target.value)}><option value="">Araç tipi</option><option>Çekici</option><option>Öncü</option><option>Diğer</option></select>
+          <select value={expense.vehicle_type || ''} onChange={e => setExpenseField('vehicle_type', e.target.value)}><option value="">Araç tipi</option><option>Çekici</option><option>Öncü</option><option>Diğer</option></select>
         </div>
 
         {isFuel && <div className="fuelBox">
           {needsFuelStatus && <>
             <b>Yakıt Durumu</b>
-            <label><input type="radio" name="fuel_status" checked={currentExpense.fuel_status === 'Boş'} onChange={() => setExpenseField('fuel_status', 'Boş')} /> Boş</label>
-            <label><input type="radio" name="fuel_status" checked={currentExpense.fuel_status === 'Dolu'} onChange={() => setExpenseField('fuel_status', 'Dolu')} /> Dolu</label>
+            <label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Boş'} onChange={() => setExpenseField('fuel_status', 'Boş')} /> Boş</label>
+            <label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Dolu'} onChange={() => setExpenseField('fuel_status', 'Dolu')} /> Dolu</label>
           </>}
           {!needsFuelStatus && <b>Yakıt Durumu: Öncü / Diğer araç için Boş-Dolu seçilmez</b>}
-          <input type="number" step="0.01" placeholder="Litre" value={currentExpense.liter || ''} onChange={e => setExpenseField('liter', e.target.value)} />
+          <input type="number" step="0.01" placeholder="Litre" value={expense.liter || ''} onChange={e => setExpenseField('liter', e.target.value)} />
         </div>}
 
         <div className="grid two expenseBottom">
-          <input required type="number" step="0.01" placeholder="Tutar" value={currentExpense.amount || ''} onChange={e => setExpenseField('amount', e.target.value)} />
-          <select value={currentExpense.currency || selectedDef?.default_currency || 'TRY'} onChange={e => setExpenseField('currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
-          <input type="date" value={currentExpense.expense_date || ''} onChange={e => setExpenseField('expense_date', e.target.value)} />
-          <input placeholder="Açıklama" value={currentExpense.note || ''} onChange={e => setExpenseField('note', e.target.value)} />
+          <input required type="number" step="0.01" placeholder="Tutar" value={expense.amount || ''} onChange={e => setExpenseField('amount', e.target.value)} />
+          <select value={expense.currency || selectedDef?.default_currency || 'TRY'} onChange={e => setExpenseField('currency', e.target.value)}><option>TRY</option><option>EUR</option><option>USD</option></select>
+          <input type="date" value={expense.expense_date || ''} onChange={e => setExpenseField('expense_date', e.target.value)} />
+          <input placeholder="Açıklama" value={expense.note || ''} onChange={e => setExpenseField('note', e.target.value)} />
         </div>
         <div className="formActions">
           <button className="primary" type="submit">{editingExpenseId ? 'Masrafı Güncelle' : 'Masraf Ekle'}</button>
           {editingExpenseId && <button type="button" className="ghost" onClick={cancelExpenseEdit}>Vazgeç / Yeni Masraf</button>}
         </div>
       </form>
-      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>İşlem</th></tr></thead><tbody>{selectedTripExpenses.length ? selectedTripExpenses.map(x => <tr key={x.id} className={editingExpenseId === x.id ? 'editingRow' : ''}><td>{x.expense_name || '-'}</td><td>{x.category || '-'}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount || '-'}</td><td>{x.currency || '-'}</td><td>{x.expense_date || '-'}</td><td className="rowActions"><button type="button" onClick={() => editExpense(x)}>Düzelt</button><button type="button" className="danger" onClick={() => deleteExpense(x)}>Sil</button></td></tr>) : <tr><td colSpan="10">{currentExpense.trip_id ? 'Seçili sefere ait masraf yok.' : 'Henüz masraf girilmedi.'}</td></tr>}</tbody></table></div>
+      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>İşlem</th></tr></thead><tbody>{expenses.length ? expenses.map(x => <tr key={x.id} className={editingExpenseId === x.id ? 'editingRow' : ''}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td><td className="rowActions"><button type="button" onClick={() => editExpense(x)}>Düzelt</button><button type="button" className="danger" onClick={() => deleteExpense(x)}>Sil</button></td></tr>) : <tr><td colSpan="10">Henüz masraf girilmedi.</td></tr>}</tbody></table></div>
     </main>
   </div>;
 }
+
 
 
 
@@ -894,46 +837,6 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const tractorKmPerLiter = tractorFuelLiters > 0 ? totalTripKm / tractorFuelLiters : 0;
   const selectedOtherItems = otherItems.filter(x => selectedOtherIds.includes(x.id));
 
-  const activeAllowanceDef = (defs?.allowanceDefinitions || []).find(x => x.is_active) || (defs?.allowanceDefinitions || [])[0] || null;
-  const allowanceDaily = {
-    domestic: activeAllowanceDef?.domestic_daily_amount || 0,
-    abroad: activeAllowanceDef?.abroad_daily_amount || 0
-  };
-  const allowanceCurrency = {
-    domestic: activeAllowanceDef?.domestic_currency || 'TRY',
-    abroad: activeAllowanceDef?.abroad_currency || 'EUR'
-  };
-  const tractorDriverName = (defs?.drivers || []).find(d => d.id === selectedTrip?.driver_id)?.name || '';
-  const escortDriverName = (defs?.escorts || []).find(e => e.id === selectedTrip?.escort_id)?.name || '';
-  const tractorAllowanceDates = {
-    domestic_start_date: formatDateForInput(selectedTrip?.domestic_start_date),
-    domestic_exit_date: formatDateForInput(selectedTrip?.domestic_exit_date),
-    domestic_return_date: formatDateForInput(selectedTrip?.domestic_return_date),
-    domestic_end_date: formatDateForInput(selectedTrip?.domestic_end_date),
-    abroad_entry_date: formatDateForInput(selectedTrip?.abroad_entry_date),
-    abroad_exit_date: formatDateForInput(selectedTrip?.abroad_exit_date)
-  };
-  const escortGoesAbroad = selectedTrip?.escort_goes_abroad !== false;
-  const escortAllowanceDates = {
-    domestic_start_date: formatDateForInput(selectedTrip?.escort_domestic_start_date || selectedTrip?.domestic_start_date),
-    domestic_exit_date: formatDateForInput(selectedTrip?.escort_domestic_exit_date || selectedTrip?.domestic_exit_date),
-    domestic_return_date: formatDateForInput(selectedTrip?.escort_domestic_return_date || selectedTrip?.domestic_return_date),
-    domestic_end_date: formatDateForInput(selectedTrip?.escort_domestic_end_date || selectedTrip?.domestic_end_date),
-    abroad_entry_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_entry_date || selectedTrip?.abroad_entry_date) : '',
-    abroad_exit_date: escortGoesAbroad ? formatDateForInput(selectedTrip?.escort_abroad_exit_date || selectedTrip?.abroad_exit_date) : ''
-  };
-  const tractorAllowanceDays = calcAllowanceDaysFromDates(tractorAllowanceDates);
-  const escortAllowanceDays = escortGoesAbroad ? calcAllowanceDaysFromDates(escortAllowanceDates) : {
-    domesticDays: baseDaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date) + countSundaysInclusive(escortAllowanceDates.domestic_start_date, escortAllowanceDates.domestic_end_date),
-    abroadDays: 0
-  };
-  const allowanceTotals = {
-    tractorDomestic: tractorAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
-    tractorAbroad: tractorAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad),
-    escortDomestic: escortAllowanceDays.domesticDays * numberValue(allowanceDaily.domestic),
-    escortAbroad: escortAllowanceDays.abroadDays * numberValue(allowanceDaily.abroad)
-  };
-
   function totalsByCurrency(items) {
     return currencies
       .map(c => ({ currency: c, amount: sumAmount(items, c) }))
@@ -987,39 +890,6 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
       </div>
 
       {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar 0 değerlerle gösteriliyor.</div>}
-
-      <h3 className="summaryMainTitle">Harcırah Özeti</h3>
-        <div className="cleanSummaryGrid">
-          <SummaryBox title="Çekici Sürücüsü Harcırahı">
-            <ExpenseSummaryRow label="Sürücü" value={tractorDriverName || '-'} />
-            <ExpenseSummaryRow label="Yurt İçi Tarihleri" value={`${tractorAllowanceDates.domestic_start_date || '-'} / ${tractorAllowanceDates.domestic_exit_date || '-'} / ${tractorAllowanceDates.domestic_return_date || '-'} / ${tractorAllowanceDates.domestic_end_date || '-'}`} />
-            <ExpenseSummaryRow label="Yurt İçi Gün" value={tractorAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
-            <ExpenseSummaryRow label="Yurt İçi Günlük Harcırah" value={`${numberValue(allowanceDaily.domestic).toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} />
-            <ExpenseSummaryRow label="Yurt İçi Harcırah" value={`${allowanceTotals.tractorDomestic.toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} highlight />
-            <ExpenseSummaryRow label="Yurt Dışı Tarihleri" value={`${tractorAllowanceDates.abroad_entry_date || '-'} / ${tractorAllowanceDates.abroad_exit_date || '-'}`} />
-            <ExpenseSummaryRow label="Yurt Dışı Gün" value={tractorAllowanceDays.abroadDays.toLocaleString('tr-TR')} />
-            <ExpenseSummaryRow label="Yurt Dışı Günlük Harcırah" value={`${numberValue(allowanceDaily.abroad).toLocaleString('tr-TR')} ${allowanceCurrency.abroad}`} />
-            <ExpenseSummaryRow label="Yurt Dışı Harcırah" value={`${allowanceTotals.tractorAbroad.toLocaleString('tr-TR')} ${allowanceCurrency.abroad}`} highlight />
-          </SummaryBox>
-
-          <SummaryBox title="Öncü Sürücüsü Harcırahı">
-            <ExpenseSummaryRow label="Öncü Sürücü" value={escortDriverName || '-'} />
-            <ExpenseSummaryRow label="Yurt İçi Tarihleri" value={`${escortAllowanceDates.domestic_start_date || '-'} / ${escortAllowanceDates.domestic_exit_date || '-'} / ${escortAllowanceDates.domestic_return_date || '-'} / ${escortAllowanceDates.domestic_end_date || '-'}`} />
-            <ExpenseSummaryRow label="Yurt İçi Gün" value={escortAllowanceDays.domesticDays.toLocaleString('tr-TR')} />
-            <ExpenseSummaryRow label="Yurt İçi Günlük Harcırah" value={`${numberValue(allowanceDaily.domestic).toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} />
-            <ExpenseSummaryRow label="Yurt İçi Harcırah" value={`${allowanceTotals.escortDomestic.toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} highlight />
-            <ExpenseSummaryRow label="Yurt Dışı Tarihleri" value={escortGoesAbroad ? `${escortAllowanceDates.abroad_entry_date || '-'} / ${escortAllowanceDates.abroad_exit_date || '-'}` : ''} />
-            <ExpenseSummaryRow label="Yurt Dışı Gün" value={escortGoesAbroad ? escortAllowanceDays.abroadDays.toLocaleString('tr-TR') : ''} />
-            <ExpenseSummaryRow label="Yurt Dışı Günlük Harcırah" value={escortGoesAbroad ? `${numberValue(allowanceDaily.abroad).toLocaleString('tr-TR')} ${allowanceCurrency.abroad}` : ''} />
-            <ExpenseSummaryRow label="Yurt Dışı Harcırah" value={escortGoesAbroad ? `${allowanceTotals.escortAbroad.toLocaleString('tr-TR')} ${allowanceCurrency.abroad}` : ''} highlight />
-          </SummaryBox>
-
-          <SummaryBox title="Toplam Harcırah">
-            <ExpenseSummaryRow label="Toplam Yurt İçi Harcırah" value={`${(allowanceTotals.tractorDomestic + allowanceTotals.escortDomestic).toLocaleString('tr-TR')} ${allowanceCurrency.domestic}`} highlight />
-            <ExpenseSummaryRow label="Toplam Yurt Dışı Harcırah" value={`${(allowanceTotals.tractorAbroad + allowanceTotals.escortAbroad).toLocaleString('tr-TR')} ${allowanceCurrency.abroad}`} highlight />
-            <ExpenseSummaryRow label="Harcırah Tanımı" value={activeAllowanceDef?.name || 'Tanım yok'} />
-          </SummaryBox>
-        </div>
 
       <h3 className="summaryMainTitle">Çekici Yakıt</h3>
       <div className="cleanSummaryGrid">
@@ -1100,10 +970,6 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
               <thead><tr><th>Seç</th><th>Masraf</th><th>Kategori</th><th>Araç</th><th>Ülke</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead>
               <tbody>{otherRows()}</tbody>
             </table>
-          </div>
-          <div className="formActions">
-            <button className="primary" type="button" onClick={() => alert(`Seçilen diğer masraflar toplamı: ${moneyList(selectedOtherItems)}`)}>Seçilenleri Birleştir</button>
-            <button className="ghost" type="button" onClick={() => setSelectedOtherIds([])}>Seçimi Temizle</button>
           </div>
           <div className="summaryRows otherMergeTotal">
             <ExpenseSummaryRow label="Seçili Diğer Masraflar Birleşik Toplam" value={moneyList(selectedOtherItems)} highlight />
