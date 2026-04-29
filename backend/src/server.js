@@ -25,6 +25,12 @@ const tableMap = {
   allowanceDefinitions: 'erp_allowance_definitions'
 };
 
+function cleanEmptyValues(payload) {
+  return Object.fromEntries(
+    Object.entries(payload || {}).map(([key, value]) => [key, value === '' ? null : value])
+  );
+}
+
 function cleanPayload(kind, payload) {
   if (['projects', 'drivers', 'escorts', 'countries'].includes(kind)) return { name: String(payload.name || '').trim() };
   if (['tractors', 'trailers', 'escortVehicles'].includes(kind)) return { plate: String(payload.plate || '').trim().toUpperCase(), info: String(payload.info || '').trim() || null };
@@ -268,7 +274,7 @@ app.get('/trips', async (_, res) => {
 });
 
 app.post('/trips', async (req, res) => {
-  const { data, error } = await supabase.from('erp_trips').insert(req.body || {}).select().single();
+  const { data, error } = await supabase.from('erp_trips').insert(cleanEmptyValues(req.body || {})).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
 });

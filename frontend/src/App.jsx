@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+const API = import.meta.env.VITE_API_URL || window.location.origin;
 
 const blankTrip = {
   project_id: '', project_name: '', load_type: '', load_width: '', load_height: '', load_length: '', load_weight: '',
@@ -108,6 +108,15 @@ function numberValue(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+
+function cleanEmptyValues(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [key, value === '' ? null : value])
+  );
+}
+
+
+
 function App() {
   const [screen, setScreen] = useState('trip');
   const [defs, setDefs] = useState(null);
@@ -122,21 +131,32 @@ function App() {
   const [message, setMessage] = useState('');
 
   async function request(path, options = {}) {
-    const res = await fetch(API + path, {
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-      ...options
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const text = await res.text();
-    let json = null;
     try {
-      json = text ? JSON.parse(text) : null;
-    } catch (err) {
-      throw new Error(`API JSON dönmedi. Endpoint: ${path}. HTTP ${res.status}. Backend adresi veya route kontrol edilmeli.`);
-    }
+      const res = await fetch(API + path, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        signal: controller.signal,
+        ...options
+      });
 
-    if (!res.ok || !json?.ok) throw new Error(json?.error || 'İşlem başarısız');
-    return json.data;
+      const text = await res.text();
+      let json = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch (err) {
+        throw new Error(`API JSON dönmedi. Endpoint: ${path}. HTTP ${res.status}. Backend adresi veya route kontrol edilmeli.`);
+      }
+
+      if (!res.ok || !json?.ok) throw new Error(json?.error || 'İşlem başarısız');
+      return json.data;
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error(`API zaman aşımı: ${path}`);
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   async function safeRequest(path, fallback) {
@@ -150,38 +170,57 @@ function App() {
   }
 
   async function loadAll() {
-    const [definitions, tripList, expenseList, advanceList, allowanceList] = await Promise.all([
-      safeRequest('/definitions', { projects: [], drivers: [], tractors: [], trailers: [], escorts: [], escortVehicles: [], countries: [], cities: [], expenseDefinitions: [], allowanceDefinitions: [] }),
-      safeRequest('/trips', []),
-      safeRequest('/expenses', []),
-      safeRequest('/advances', []),
-      safeRequest('/allowances', [])
-    ]);
+    const emptyDefinitions = {
+      projects: [],
+      drivers: [],
+      tractors: [],
+      trailers: [],
+      escorts: [],
+      escortVehicles: [],
+      countries: [],
+      cities: [],
+      expenseDefinitions: [],
+      allowanceDefinitions: []
+    };
 
-    setDefs({
-      projects: definitions.projects || [],
-      drivers: definitions.drivers || [],
-      tractors: definitions.tractors || [],
-      trailers: definitions.trailers || [],
-      escorts: definitions.escorts || [],
-      escortVehicles: definitions.escortVehicles || [],
-      countries: definitions.countries || [],
-      cities: definitions.cities || [],
-      expenseDefinitions: definitions.expenseDefinitions || [],
-      allowanceDefinitions: definitions.allowanceDefinitions || []
-    });
-    setTrips(tripList || []);
-    setExpenses(expenseList || []);
-    setAdvances(advanceList || []);
-    setAllowances(allowanceList || []);
+    try {
+      const [definitions, tripList, expenseList, advanceList, allowanceList] = await Promise.all([
+        safeRequest('/definitions', emptyDefinitions),
+        safeRequest('/trips', []),
+        safeRequest('/expenses', []),
+        safeRequest('/advances', []),
+        safeRequest('/allowances', [])
+      ]);
+
+      setDefs({
+        projects: definitions.projects || [],
+        drivers: definitions.drivers || [],
+        tractors: definitions.tractors || [],
+        trailers: definitions.trailers || [],
+        escorts: definitions.escorts || [],
+        escortVehicles: definitions.escortVehicles || [],
+        countries: definitions.countries || [],
+        cities: definitions.cities || [],
+        expenseDefinitions: definitions.expenseDefinitions || [],
+        allowanceDefinitions: definitions.allowanceDefinitions || []
+      });
+      setTrips(tripList || []);
+      setExpenses(expenseList || []);
+      setAdvances(advanceList || []);
+      setAllowances(allowanceList || []);
+    } catch (err) {
+      console.error(err);
+      setMessage('Bağlantı hatası: ' + err.message);
+      setDefs(emptyDefinitions);
+      setTrips([]);
+      setExpenses([]);
+      setAdvances([]);
+      setAllowances([]);
+    }
   }
 
   useEffect(() => {
-    loadAll().catch(err => {
-      console.error(err);
-      setMessage('Bağlantı hatası: ' + err.message);
-      setDefs({ projects: [], drivers: [], tractors: [], trailers: [], escorts: [], escortVehicles: [], countries: [], cities: [], expenseDefinitions: [], allowanceDefinitions: [] });
-    });
+    loadAll();
   }, []);
 
   const totalTonnage = useMemo(() => numberValue(trip.load_weight) + numberValue(trip.tractor_tonnage) + numberValue(trip.trailer_tonnage), [trip.load_weight, trip.tractor_tonnage, trip.trailer_tonnage]);
@@ -211,15 +250,41 @@ function App() {
 
   async function saveTrip(e) {
     e.preventDefault();
+
     try {
-      const payload = { ...trip, project_name: defs.projects.find(p => p.id === trip.project_id)?.name || trip.project_name || null, total_tonnage: totalTonnage, tonnage_fill_percent: tonnagePercent, trip_km: tripKm, total_trip_km: totalTripKm, domestic_work_days: tripAllowanceDays.domesticDays, abroad_work_days: tripAllowanceDays.abroadDays };
-      const saved = await request('/trips', { method: 'POST', body: JSON.stringify(payload) });
-      setMessage('Sefer kaydedildi. Masraf ekranına geçildi.');
-      setExpense({ ...blankExpense, trip_id: saved.id });
+      const projectName = defs.projects.find(p => p.id === trip.project_id)?.name || trip.project_name || 'Projesiz Sefer';
+
+      const payload = cleanEmptyValues({
+        ...trip,
+        project_name: projectName,
+        total_tonnage: totalTonnage,
+        tonnage_fill_percent: tonnagePercent,
+        trip_km: tripKm,
+        total_trip_km: totalTripKm,
+        domestic_work_days: tripAllowanceDays.domesticDays,
+        abroad_work_days: tripAllowanceDays.abroadDays
+      });
+
+      const saved = await request('/trips', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      const nextExpense = { ...blankExpense, trip_id: saved.id };
+      setExpense(nextExpense);
       setTrip(blankTrip);
-      await loadAll();
       setScreen('expenses');
-    } catch (err) { alert(err.message); }
+      setMessage('Sefer kaydedildi. Masraf ekranına geçildi.');
+
+      // Ekran geçişini bekletmemek için liste yenilemeyi arkada çalıştır.
+      loadAll().catch(err => {
+        console.error(err);
+        setMessage('Sefer kaydedildi ancak liste yenileme uyarısı: ' + err.message);
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Sefer kaydedilemedi: ' + err.message);
+    }
   }
 
   if (!defs) return <div className="page">Yükleniyor...</div>;
