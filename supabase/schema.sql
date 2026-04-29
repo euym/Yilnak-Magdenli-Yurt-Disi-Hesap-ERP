@@ -25,6 +25,13 @@ drop table if exists public.erp_allowance_definitions cascade;
 drop table if exists public.erp_advances cascade;
 drop table if exists public.erp_expenses cascade;
 drop table if exists public.erp_expense_definitions cascade;
+drop table if exists public.erp_expense_categories cascade;
+
+create table public.erp_expense_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamptz default now()
+);
 
 create table public.erp_expense_definitions (
   id uuid primary key default gen_random_uuid(),
@@ -97,10 +104,20 @@ create table public.erp_allowances (
   note text
 );
 
+insert into public.erp_expense_categories(name) values
+('Yakıt'),
+('Yol'),
+('Belge'),
+('Operasyon'),
+('Personel'),
+('Diğer')
+on conflict do nothing;
+
 insert into public.erp_expense_definitions(name, category, default_currency) values
 ('Mazot', 'Yakıt', 'EUR'),
 ('Otoban', 'Yol', 'EUR'),
-('Kantar', 'Belge', 'TRY'),
+('TL Kantar', 'Belge', 'TRY'),
+('Euro Kantar', 'Belge', 'EUR'),
 ('Belge', 'Belge', 'TRY'),
 ('Vinç', 'Operasyon', 'TRY'),
 ('Eskort', 'Operasyon', 'EUR')
@@ -112,17 +129,25 @@ values
 ('Standart Harcırah', 1200, 'TRY', 40, 'EUR', true)
 on conflict do nothing;
 
+alter table public.erp_expense_categories enable row level security;
 alter table public.erp_expense_definitions enable row level security;
 alter table public.erp_expenses enable row level security;
 alter table public.erp_advances enable row level security;
 alter table public.erp_allowance_definitions enable row level security;
 alter table public.erp_allowances enable row level security;
 
+drop policy if exists "allow_all_erp_expense_categories" on public.erp_expense_categories;
 drop policy if exists "allow_all_erp_expense_definitions" on public.erp_expense_definitions;
 drop policy if exists "allow_all_erp_expenses" on public.erp_expenses;
 drop policy if exists "allow_all_erp_advances" on public.erp_advances;
 drop policy if exists "allow_all_erp_allowance_definitions" on public.erp_allowance_definitions;
 drop policy if exists "allow_all_erp_allowances" on public.erp_allowances;
+
+create policy "allow_all_erp_expense_categories"
+on public.erp_expense_categories for all
+to anon, authenticated
+using (true)
+with check (true);
 
 create policy "allow_all_erp_expense_definitions"
 on public.erp_expense_definitions for all

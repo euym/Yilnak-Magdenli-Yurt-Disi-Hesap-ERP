@@ -43,3 +43,14 @@ supabase/schema.sql dosyasını SQL Editor'da çalıştır.
 - Toplam Sefer KM = Bitiş KM - Başlangıç KM.
 - Sefer KM = Toplam Sefer KM / 2.
 - Böylece Sefer KM sadece gidişi, Toplam Sefer KM gidiş+dönüş toplamını temsil eder.
+
+## Bu revizyonda yapılanlar
+- Masraf kategorileri artık Tanımlar > Masraf Kategori ekranından eklenip silinebilir.
+- Masraf tanımı para birimine bağlandı; masraf girişinde para birimi otomatik gelir ve değiştirilemez.
+- TL Kantar / Euro Kantar gibi ayrı tanımlar desteklendi.
+- Masraf ekranındaki sol bilgi kutucuğu kaldırıldı.
+- Avans ekranındaki Avans / Masraf Bakiye Kontrolü kutucuğu kaldırıldı.
+- Üst menüden Masraf Özeti, Maliyet/Gerçekleşen ve Rapor sekmeleri kaldırıldı.
+- Yakıt özeti komponenti 6 tablo mantığına göre hazırlandı; rapor ekranında kullanılmak üzere bırakıldı.
+
+Not: Yeni kategori tablosu için `supabase/schema.sql` dosyasındaki SQL'i Supabase üzerinde çalıştırın.
