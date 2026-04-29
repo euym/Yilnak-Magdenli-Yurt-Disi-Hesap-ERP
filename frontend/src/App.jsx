@@ -42,8 +42,8 @@ const blankAllowance = {
 
 const defTabs = [
   ['allowanceDefinitions', 'Harcırah'],
-  ['expenseCategories', 'Masraf Kategori'],
-  ['expenseDefinitions', 'Masraf'],
+  ['expenseCategories', 'Masraf Kategorileri'],
+  ['expenseDefinitions', 'Masraf Tanımları'],
   ['projects', 'Proje Adı'],
   ['drivers', 'Sürücü'],
   ['tractors', 'Çekici'],
@@ -425,8 +425,7 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
 function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, reload }) {
   const selectedDef = defs.expenseDefinitions.find(x => x.id === expense.expense_definition_id);
   const isFuel = selectedDef?.category === 'Yakıt';
-  const selectedCurrency = selectedDef?.default_currency || expense.currency || 'TRY';
-  const expenseOptions = (defs.expenseDefinitions || []).map(d => ({ ...d, label: (d.name || 'Masraf') + ' - ' + (d.category || 'Kategori') + ' - ' + (d.default_currency || 'TRY') }));
+  const selectedTripExpenses = expense.trip_id ? expenses.filter(x => x.trip_id === expense.trip_id) : expenses;
 
   function setExpenseField(name, value) {
     setExpense(prev => {
@@ -445,40 +444,76 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
     e.preventDefault();
     if (!expense.trip_id) return alert('Sefer seçiniz.');
     if (!expense.expense_definition_id) return alert('Masraf türü seçiniz.');
-    if (isFuel && !expense.fuel_status) return alert('Yakıt için Boş/Dolu seçiniz.');
+    if (selectedDef?.default_currency && expense.currency !== selectedDef.default_currency) return alert('Bu masraf tanımı sadece ' + selectedDef.default_currency + ' para birimi ile kaydedilebilir.');
+    if (isFuel && !expense.vehicle_type) return alert('Yakıt için araç tipi seçiniz.');
+    if (isFuel && expense.vehicle_type === 'Çekici' && !expense.fuel_status) return alert('Çekici yakıtı için Boş/Dolu seçiniz.');
     if (isFuel && !expense.liter) return alert('Yakıt için litre giriniz.');
-    if (selectedDef?.default_currency && expense.currency && expense.currency !== selectedDef.default_currency) return alert('Seçilen masraf tanımı para birimi ile giriş para birimi aynı olmalı.');
-    await request('/expenses', { method: 'POST', body: JSON.stringify({ ...expense, currency: selectedCurrency }) });
+    await request('/expenses', { method: 'POST', body: JSON.stringify({ ...expense, currency: selectedDef?.default_currency || expense.currency || 'TRY' }) });
     setExpense({ ...blankExpense, trip_id: expense.trip_id });
     await reload();
     alert('Masraf eklendi');
   }
 
-  return <div className="layout single">
-    <main className="card"><h2>Masraf Girişi</h2>
-      <form onSubmit={saveExpense}>
-        <div className="grid two">
-          <Select label="Sefer seç" value={expense.trip_id} onChange={v => setExpenseField('trip_id', v)} options={trips.map(t => ({ ...t, label: `${t.project_name || 'Projesiz'} - ${new Date(t.created_at).toLocaleDateString('tr-TR')}` }))} textKey="label" />
-          <Select label="Masraf türü / kategori / para" value={expense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={expenseOptions} textKey="label" />
-          <ReadOnly label="Kategori" value={selectedDef?.category || '-'} />
-          <Select label="Ülke" value={expense.country_id} onChange={v => setExpenseField('country_id', v)} options={defs.countries} textKey="name" />
-          <Select label="Şehir" value={expense.city_id} onChange={v => setExpenseField('city_id', v)} options={defs.cities.filter(c => c.country_id === expense.country_id)} textKey="name" />
-          <select value={expense.vehicle_type || ''} onChange={e => setExpenseField('vehicle_type', e.target.value)}><option value="">Araç tipi</option><option>Çekici</option><option>Öncü</option><option>Diğer</option></select>
-        </div>
-        {isFuel && <div className="fuelBox"><b>Yakıt Durumu</b><label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Boş'} onChange={() => setExpenseField('fuel_status', 'Boş')} /> Boş</label><label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Dolu'} onChange={() => setExpenseField('fuel_status', 'Dolu')} /> Dolu</label><input type="number" step="0.01" placeholder="Litre" value={expense.liter || ''} onChange={e => setExpenseField('liter', e.target.value)} /></div>}
-        <div className="grid two expenseBottom">
-          <input required type="number" step="0.01" placeholder="Tutar" value={expense.amount || ''} onChange={e => setExpenseField('amount', e.target.value)} />
-          <select value={selectedCurrency} disabled title="Para birimi masraf tanımından otomatik gelir."><option>TRY</option><option>EUR</option><option>USD</option></select>
-          <input type="date" value={expense.expense_date || ''} onChange={e => setExpenseField('expense_date', e.target.value)} />
-          <input placeholder="Açıklama" value={expense.note || ''} onChange={e => setExpenseField('note', e.target.value)} />
-        </div>
-        <button className="primary" type="submit">Masraf Ekle</button>
-      </form>
-      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Şehir</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{expenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.city_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
-    </main>
-  </div>;
+  return <main className="card fullCard"><h2>Masraf Girişi</h2>
+    <form onSubmit={saveExpense}>
+      <div className="grid two">
+        <Select label="Sefer seç" value={expense.trip_id} onChange={v => setExpenseField('trip_id', v)} options={trips.map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+        <Select label="Masraf türü" value={expense.expense_definition_id} onChange={v => setExpenseField('expense_definition_id', v)} options={defs.expenseDefinitions.map(d => ({ ...d, label: d.name + ' (' + (d.category || 'Kategori yok') + ' / ' + (d.default_currency || 'TRY') + ')' }))} textKey="label" />
+        <ReadOnly label="Kategori" value={selectedDef?.category || '-'} />
+        <ReadOnly label="Para Birimi" value={selectedDef?.default_currency || '-'} />
+        <Select label="Ülke" value={expense.country_id} onChange={v => setExpenseField('country_id', v)} options={defs.countries} textKey="name" />
+        <Select label="Şehir" value={expense.city_id} onChange={v => setExpenseField('city_id', v)} options={defs.cities.filter(c => c.country_id === expense.country_id)} textKey="name" />
+        <select value={expense.vehicle_type || ''} onChange={e => setExpenseField('vehicle_type', e.target.value)}><option value="">Araç tipi</option><option>Çekici</option><option>Öncü</option><option>Diğer</option></select>
+      </div>
+      {isFuel && <div className="fuelBox"><b>Yakıt Bilgisi</b>{expense.vehicle_type === 'Çekici' && <><label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Boş'} onChange={() => setExpenseField('fuel_status', 'Boş')} /> Boş</label><label><input type="radio" name="fuel_status" checked={expense.fuel_status === 'Dolu'} onChange={() => setExpenseField('fuel_status', 'Dolu')} /> Dolu</label></>}<input type="number" step="0.01" placeholder="Litre" value={expense.liter || ''} onChange={e => setExpenseField('liter', e.target.value)} /></div>}
+      <div className="grid two expenseBottom">
+        <input required type="number" step="0.01" placeholder="Tutar" value={expense.amount || ''} onChange={e => setExpenseField('amount', e.target.value)} />
+        <input readOnly className="lockedInput" value={selectedDef?.default_currency || expense.currency || ''} placeholder="Para birimi otomatik" />
+        <input type="date" value={expense.expense_date || ''} onChange={e => setExpenseField('expense_date', e.target.value)} />
+        <input placeholder="Açıklama" value={expense.note || ''} onChange={e => setExpenseField('note', e.target.value)} />
+      </div>
+      <p className="hint">Para birimi masraf tanımından otomatik gelir. Yanlış para birimi frontend, backend ve veritabanı tarafından engellenir.</p>
+      <button className="primary" type="submit">Masraf Ekle</button>
+    </form>
+
+    <FuelSummaryTables trips={trips} expenses={expenses} selectedTripId={expense.trip_id} />
+
+    <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Şehir</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead><tbody>{selectedTripExpenses.map(x => <tr key={x.id}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.city_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>)}</tbody></table></div>
+  </main>;
 }
 
+function FuelSummaryTables({ trips, expenses, selectedTripId }) {
+  const selectedTrip = trips.find(t => t.id === selectedTripId) || null;
+  const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
+  const fuel = tripExpenses.filter(isFuelExpense);
+  const tractorFuel = fuel.filter(x => vehicleGroup(x) === 'tractor');
+  const escortFuel = fuel.filter(x => vehicleGroup(x) === 'escort');
+  const emptyFuel = tractorFuel.filter(x => x.fuel_status === 'Boş');
+  const loadedFuel = tractorFuel.filter(x => x.fuel_status === 'Dolu');
+  const emptyDomestic = emptyFuel.filter(x => regionGroup(x) === 'domestic');
+  const emptyAbroad = emptyFuel.filter(x => regionGroup(x) === 'abroad');
+  const loadedDomestic = loadedFuel.filter(x => regionGroup(x) === 'domestic');
+  const loadedAbroad = loadedFuel.filter(x => regionGroup(x) === 'abroad');
+  const escortDomestic = escortFuel.filter(x => regionGroup(x) === 'domestic');
+  const escortAbroad = escortFuel.filter(x => regionGroup(x) === 'abroad');
+  const totalTripKm = numberValue(selectedTrip?.total_trip_km);
+  const tractorLt = sumLiter(tractorFuel);
+  const tractorPercent = totalTripKm > 0 ? tractorLt / totalTripKm * 100 : 0;
+  const emptyPercent = tractorLt > 0 ? sumLiter(emptyFuel) / tractorLt * 100 : 0;
+  const loadedPercent = tractorLt > 0 ? sumLiter(loadedFuel) / tractorLt * 100 : 0;
+  return <section className="erpSection fuelSummarySection">
+    <h3>Yakıt Özeti</h3>
+    {!selectedTripId && <p className="hint">Yakıt özetini görmek için masraf formunda sefer seçiniz.</p>}
+    <div className="fuelSummaryGrid">
+      <SummaryBox title="Çekici Boş Yakıt"><ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(emptyDomestic))} /><ExpenseSummaryRow label="Boş Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(emptyDomestic, 'TRY'), 'TRY')} /><ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(emptyAbroad))} /><ExpenseSummaryRow label="Boş Yurt Dışı Yakıt €" value={formatMoney(sumAmount(emptyAbroad, 'EUR'), 'EUR')} /><ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} highlight /><ExpenseSummaryRow label="Toplam Boş Yakıt €" value={formatMoney(sumAmount(emptyFuel, 'EUR'), 'EUR')} highlight /><ExpenseSummaryRow label="Boş Yakıt (%)" value={formatNumber(emptyPercent) + '%'} highlight /></SummaryBox>
+      <SummaryBox title="Çekici Dolu Yakıt"><ExpenseSummaryRow label="Dolu Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(loadedDomestic))} /><ExpenseSummaryRow label="Dolu Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(loadedDomestic, 'TRY'), 'TRY')} /><ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(loadedAbroad))} /><ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt €" value={formatMoney(sumAmount(loadedAbroad, 'EUR'), 'EUR')} /><ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} highlight /><ExpenseSummaryRow label="Toplam Dolu Yakıt €" value={formatMoney(sumAmount(loadedFuel, 'EUR'), 'EUR')} highlight /><ExpenseSummaryRow label="Dolu Yakıt (%)" value={formatNumber(loadedPercent) + '%'} highlight /></SummaryBox>
+      <SummaryBox title="Çekici Yakıt Ortalama"><ExpenseSummaryRow label="Toplam Çekici Yakıt (lt)" value={formatNumber(tractorLt)} /><ExpenseSummaryRow label="Toplam Sefer KM" value={formatNumber(totalTripKm)} /><ExpenseSummaryRow label="Çekici Yakıt (%)" value={formatNumber(tractorPercent) + '%'} highlight /></SummaryBox>
+      <SummaryBox title="Çekici Toplam Yakıt Masrafı"><ExpenseSummaryRow label="Yurt İçi Yakıt ₺" value={formatMoney(sumAmount([...emptyDomestic, ...loadedDomestic], 'TRY'), 'TRY')} /><ExpenseSummaryRow label="Yurt Dışı Yakıt €" value={formatMoney(sumAmount([...emptyAbroad, ...loadedAbroad], 'EUR'), 'EUR')} /><ExpenseSummaryRow label="Toplam Yakıt (lt)" value={formatNumber(tractorLt)} highlight /><ExpenseSummaryRow label="Toplam Yakıt €" value={formatMoney(sumAmount(tractorFuel, 'EUR'), 'EUR')} highlight /></SummaryBox>
+      <SummaryBox title="Öncü Yakıt"><ExpenseSummaryRow label="Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(escortDomestic))} /><ExpenseSummaryRow label="Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(escortDomestic, 'TRY'), 'TRY')} /><ExpenseSummaryRow label="Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(escortAbroad))} /><ExpenseSummaryRow label="Yurt Dışı Yakıt €" value={formatMoney(sumAmount(escortAbroad, 'EUR'), 'EUR')} /><ExpenseSummaryRow label="Yakıt Toplam €" value={formatMoney(sumAmount(escortFuel, 'EUR'), 'EUR')} highlight /></SummaryBox>
+      <SummaryBox title="Yakıt Maliyet"><ExpenseSummaryRow label="Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(fuel.filter(x => regionGroup(x) === 'domestic'), 'TRY'), 'TRY')} /><ExpenseSummaryRow label="Yurt Dışı Yakıt €" value={formatMoney(sumAmount(fuel.filter(x => regionGroup(x) === 'abroad'), 'EUR'), 'EUR')} /><ExpenseSummaryRow label="Yakıt Toplam €" value={formatMoney(sumAmount(fuel, 'EUR'), 'EUR')} highlight /></SummaryBox>
+    </div>
+  </section>;
+}
 
 
 
@@ -488,7 +523,7 @@ function normalizeText(value) {
 }
 
 function isNameLike(item, words) {
-  const text = normalizeText([item.expense_name, item.category, item.note].join(' '));
+  const text = normalizeText([item.expense_name, item.category, item.note, item.description].join(' '));
   return words.some(w => text.includes(normalizeText(w)));
 }
 
@@ -550,13 +585,6 @@ function ExpenseSummaryRow({ label, value, highlight }) {
   return <div className={highlight ? 'summaryRow highlight' : 'summaryRow'}><span>{label}</span><b>{value}</b></div>;
 }
 
-function FuelMiniCard({ title, tone = '', children }) {
-  return <section className={`fuelMiniCard ${tone}`}>
-    <h4>{title}</h4>
-    <div className="summaryRows">{children}</div>
-  </section>;
-}
-
 function SummaryBox({ title, children, tone = '' }) {
   return <section className={`expenseSummaryBox ${tone}`}>
     <h3>{title}</h3>
@@ -578,14 +606,6 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
   const escortFuel = fuel.filter(x => vehicleGroup(x) === 'escort');
   const emptyFuel = tractorFuel.filter(x => x.fuel_status === 'Boş');
   const loadedFuel = tractorFuel.filter(x => x.fuel_status === 'Dolu');
-  const emptyDomesticFuel = emptyFuel.filter(x => regionGroup(x) === 'domestic');
-  const emptyAbroadFuel = emptyFuel.filter(x => regionGroup(x) === 'abroad');
-  const loadedDomesticFuel = loadedFuel.filter(x => regionGroup(x) === 'domestic');
-  const loadedAbroadFuel = loadedFuel.filter(x => regionGroup(x) === 'abroad');
-  const escortDomesticFuel = escortFuel.filter(x => regionGroup(x) === 'domestic');
-  const escortAbroadFuel = escortFuel.filter(x => regionGroup(x) === 'abroad');
-  const domesticFuel = fuel.filter(x => regionGroup(x) === 'domestic');
-  const abroadFuel = fuel.filter(x => regionGroup(x) === 'abroad');
 
   const tolls = tripExpenses.filter(isTollExpense);
   const roadDocs = tripExpenses.filter(isRoadDocExpense);
@@ -593,9 +613,6 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
 
   const currencies = Array.from(new Set(['TRY', 'EUR', 'USD', ...tripExpenses.map(currencyOf)]));
   const totalFuelLiters = sumLiter(fuel);
-  const totalTractorLiters = sumLiter(tractorFuel);
-  const emptyFuelPercent = totalTractorLiters > 0 ? (sumLiter(emptyFuel) / totalTractorLiters) * 100 : 0;
-  const loadedFuelPercent = totalTractorLiters > 0 ? (sumLiter(loadedFuel) / totalTractorLiters) * 100 : 0;
   const fuelPercent = totalTripKm > 0 ? (totalFuelLiters / totalTripKm) * 100 : 0;
 
   function totalsByCurrency(items) {
@@ -614,57 +631,80 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
     return items.map(x => <tr key={x.id}><td>{x.expense_name || '-'}</td><td>{x.category || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.country_name || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td></tr>);
   }
 
-  return <div className="layout single">
+  return <div className="layout">
+    <aside className="sideCard">
+      <h3>Masraf Özeti</h3>
+      <Select label="Sefer seç" value={selectedTripId} onChange={setSelectedTripId} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
+      <div className="summaryGrid">
+        <div><span>Toplam Sefer KM</span><b>{totalTripKm.toLocaleString('tr-TR')}</b></div>
+        <div><span>Toplam Yakıt LT</span><b>{formatNumber(totalFuelLiters)}</b></div>
+        <div><span>Yakıt Ortalama</span><b>{fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%</b></div>
+        <div><span>Kayıt Sayısı</span><b>{tripExpenses.length}</b></div>
+      </div>
+      <p className="hint">Veri girişi yoktur. Tüm bilgiler Masraf Girişi kayıtlarından otomatik gelir.</p>
+    </aside>
+
     <main className="card">
       <div className="screenHeader">
         <div>
-          <h2>Yakıt Özeti</h2>
-          <p>Çekici boş/dolu yakıt, öncü yakıt ve toplam yakıt maliyeti sade tablolar halinde gösterilir.</p>
+          <h2>Masraf Özeti</h2>
+          <p>Ana masraf başlıkları ERP formatında özetlenir.</p>
         </div>
-        <Select label="Sefer seç" value={selectedTripId} onChange={setSelectedTripId} options={(trips || []).map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
       </div>
+
       {!selectedTrip && <div className="message">Sefer seçilmedi. Tablolar 0 değerlerle gösteriliyor.</div>}
-      <div className="fuelSixGrid">
-        <FuelMiniCard title="Çekici Boş Yakıt" tone="tractor">
-          <ExpenseSummaryRow label="Boş Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(emptyDomesticFuel))} />
-          <ExpenseSummaryRow label="Boş Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(emptyDomesticFuel, 'TRY'), 'TRY')} />
-          <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(emptyAbroadFuel))} />
-          <ExpenseSummaryRow label="Boş Yurt Dışı Yakıt €" value={formatMoney(sumAmount(emptyAbroadFuel, 'EUR'), 'EUR')} />
-          <ExpenseSummaryRow label="Toplam Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} highlight />
-          <ExpenseSummaryRow label="Toplam Boş Yakıt €" value={formatMoney(sumAmount(emptyFuel, 'EUR'), 'EUR')} highlight />
-          <ExpenseSummaryRow label="Boş Yakıt (%)" value={`${emptyFuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
-        </FuelMiniCard>
-        <FuelMiniCard title="Çekici Dolu Yakıt" tone="tractor">
-          <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(loadedDomesticFuel))} />
-          <ExpenseSummaryRow label="Dolu Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(loadedDomesticFuel, 'TRY'), 'TRY')} />
-          <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(loadedAbroadFuel))} />
-          <ExpenseSummaryRow label="Dolu Yurt Dışı Yakıt €" value={formatMoney(sumAmount(loadedAbroadFuel, 'EUR'), 'EUR')} />
-          <ExpenseSummaryRow label="Toplam Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} highlight />
-          <ExpenseSummaryRow label="Toplam Dolu Yakıt €" value={formatMoney(sumAmount(loadedFuel, 'EUR'), 'EUR')} highlight />
-          <ExpenseSummaryRow label="Dolu Yakıt (%)" value={`${loadedFuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
-        </FuelMiniCard>
-        <FuelMiniCard title="Çekici Yakıt Ortalama" tone="general">
-          <ExpenseSummaryRow label="Toplam Çekici Yakıt (lt)" value={formatNumber(totalTractorLiters)} highlight />
-          <ExpenseSummaryRow label="Toplam Sefer KM" value={formatNumber(totalTripKm)} />
-          <ExpenseSummaryRow label="Çekici Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
-        </FuelMiniCard>
-        <FuelMiniCard title="Çekici Toplam Yakıt Masrafı" tone="cost">
-          <ExpenseSummaryRow label="Çekici Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(tractorFuel.filter(x => regionGroup(x) === 'domestic'), 'TRY'), 'TRY')} />
-          <ExpenseSummaryRow label="Çekici Yurt Dışı Yakıt €" value={formatMoney(sumAmount(tractorFuel.filter(x => regionGroup(x) === 'abroad'), 'EUR'), 'EUR')} />
-          <ExpenseSummaryRow label="Çekici Yakıt Toplam €" value={formatMoney(sumAmount(tractorFuel, 'EUR'), 'EUR')} highlight />
-        </FuelMiniCard>
-        <FuelMiniCard title="Öncü Yakıt" tone="escort">
-          <ExpenseSummaryRow label="Yurt İçi Yakıt (lt)" value={formatNumber(sumLiter(escortDomesticFuel))} />
-          <ExpenseSummaryRow label="Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(escortDomesticFuel, 'TRY'), 'TRY')} />
-          <ExpenseSummaryRow label="Yurt Dışı Yakıt (lt)" value={formatNumber(sumLiter(escortAbroadFuel))} />
-          <ExpenseSummaryRow label="Yurt Dışı Yakıt €" value={formatMoney(sumAmount(escortAbroadFuel, 'EUR'), 'EUR')} />
-          <ExpenseSummaryRow label="Yakıt Toplam €" value={formatMoney(sumAmount(escortFuel, 'EUR'), 'EUR')} highlight />
-        </FuelMiniCard>
-        <FuelMiniCard title="Yakıt Maliyet" tone="cost">
-          <ExpenseSummaryRow label="Yurt İçi Yakıt ₺" value={formatMoney(sumAmount(domesticFuel, 'TRY'), 'TRY')} />
-          <ExpenseSummaryRow label="Yurt Dışı Yakıt €" value={formatMoney(sumAmount(abroadFuel, 'EUR'), 'EUR')} />
-          <ExpenseSummaryRow label="Yakıt Toplam €" value={formatMoney(sumAmount(fuel, 'EUR'), 'EUR')} highlight />
-        </FuelMiniCard>
+
+      <div className="cleanSummaryGrid">
+        <section className="cleanSummaryCard">
+          <h3>Yakıt Özeti</h3>
+          <div className="summaryRows">
+            <ExpenseSummaryRow label="Çekici Boş Yakıt (lt)" value={formatNumber(sumLiter(emptyFuel))} />
+            <ExpenseSummaryRow label="Çekici Dolu Yakıt (lt)" value={formatNumber(sumLiter(loadedFuel))} />
+            <ExpenseSummaryRow label="Çekici Yakıt Toplam (lt)" value={formatNumber(sumLiter(tractorFuel))} highlight />
+            <ExpenseSummaryRow label="Öncü Yakıt Toplam (lt)" value={formatNumber(sumLiter(escortFuel))} highlight />
+            <ExpenseSummaryRow label="Toplam Yakıt (lt)" value={formatNumber(totalFuelLiters)} highlight />
+            <ExpenseSummaryRow label="Yakıt Ortalama (%)" value={`${fuelPercent.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}%`} highlight />
+            <ExpenseSummaryRow label="Yakıt Tutar Toplamı" value={moneyList(fuel)} highlight />
+          </div>
+        </section>
+
+        <section className="cleanSummaryCard">
+          <h3>Ücretli Karayolu</h3>
+          <div className="summaryRows">
+            <ExpenseSummaryRow label="Çekici Ücretli Karayolu" value={moneyList(tolls.filter(x => vehicleGroup(x) === 'tractor'))} />
+            <ExpenseSummaryRow label="Öncü Ücretli Karayolu" value={moneyList(tolls.filter(x => vehicleGroup(x) === 'escort'))} />
+            <ExpenseSummaryRow label="Yurt İçi Toplam" value={moneyList(tolls.filter(x => regionGroup(x) === 'domestic'))} />
+            <ExpenseSummaryRow label="Yurt Dışı Toplam" value={moneyList(tolls.filter(x => regionGroup(x) === 'abroad'))} />
+            <ExpenseSummaryRow label="Toplam" value={moneyList(tolls)} highlight />
+          </div>
+        </section>
+
+        <section className="cleanSummaryCard">
+          <h3>Yol Belgesi</h3>
+          <div className="summaryRows">
+            <ExpenseSummaryRow label="Yurt İçi Yol Belgesi" value={moneyList(roadDocs.filter(x => regionGroup(x) === 'domestic'))} />
+            <ExpenseSummaryRow label="Yurt Dışı Yol Belgesi" value={moneyList(roadDocs.filter(x => regionGroup(x) === 'abroad'))} />
+            <ExpenseSummaryRow label="Toplam" value={moneyList(roadDocs)} highlight />
+          </div>
+        </section>
+
+        <section className="cleanSummaryCard wide">
+          <div className="sectionTitleRow">
+            <h3>Diğer Masraflar</h3>
+            <label className="smallSwitch"><input type="checkbox" checked={mergeOther} onChange={e => setMergeOther(e.target.checked)} /> Birleştir</label>
+          </div>
+
+          {mergeOther ? <div className="summaryRows">
+            <ExpenseSummaryRow label="Yurt İçi Diğer Masraflar" value={moneyList(otherItems.filter(x => regionGroup(x) === 'domestic'))} />
+            <ExpenseSummaryRow label="Yurt Dışı Diğer Masraflar" value={moneyList(otherItems.filter(x => regionGroup(x) === 'abroad'))} />
+            <ExpenseSummaryRow label="Diğer Masraflar Toplam" value={moneyList(otherItems)} highlight />
+          </div> : <div className="tableWrap">
+            <table>
+              <thead><tr><th>Masraf</th><th>Kategori</th><th>Araç</th><th>Ülke</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead>
+              <tbody>{itemRows(otherItems)}</tbody>
+            </table>
+          </div>}
+        </section>
       </div>
     </main>
   </div>;
@@ -727,7 +767,23 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
     alert('Avans eklendi');
   }
 
-  return <div className="layout single">
+  return <div className="layout">
+    <aside className="sideCard"><h3>Avans / Masraf Bakiye Kontrolü</h3>
+      <p className="hint">Bakiye hesabı seçili sefere ve para birimine göre ayrı yapılır.</p>
+      <div className="currencyBalanceList">
+        {balances.map(row => {
+          const label = row.afterBalance > 0 ? 'Şoförde / kişide kalan' : row.afterBalance < 0 ? 'Firmadan alacak' : 'Kapandı';
+          const cls = row.afterBalance > 0 ? 'ok' : row.afterBalance < 0 ? 'warn' : 'closed';
+          return <div className={`currencyBalance ${cls}`} key={row.currency}>
+            <div className="currencyHeader">{row.currency}</div>
+            <div><span>Masraf</span><b>{row.expenseTotal.toLocaleString('tr-TR')} {row.currency}</b></div>
+            <div><span>Mevcut Avans</span><b>{row.currentAdvanceTotal.toLocaleString('tr-TR')} {row.currency}</b></div>
+            <div><span>Kayıt Sonrası Avans</span><b>{row.afterAdvanceTotal.toLocaleString('tr-TR')} {row.currency}</b></div>
+            <div><span>{label}</span><b>{Math.abs(row.afterBalance).toLocaleString('tr-TR')} {row.currency}</b></div>
+          </div>;
+        })}
+      </div>
+    </aside>
     <main className="card"><h2>Avans Girişi</h2>
       <form onSubmit={saveAdvance}>
         <div className="grid two">
@@ -936,8 +992,8 @@ function Definitions({ defs, reload, request }) {
     try {
       let payload = {};
       if (tab === 'allowanceDefinitions') payload = { name: form.name, domestic_daily_amount: form.domestic_daily_amount, domestic_currency: form.domestic_currency || 'TRY', abroad_daily_amount: form.abroad_daily_amount, abroad_currency: form.abroad_currency || 'EUR', is_active: form.is_active !== false };
-      if (tab === 'expenseCategories') payload = { name: form.name };
-      if (tab === 'expenseDefinitions') payload = { name: form.name, category: form.category, default_currency: form.default_currency || 'TRY' };
+      if (tab === 'expenseCategories') payload = { name: form.name, currency: form.currency || 'TRY' };
+      if (tab === 'expenseDefinitions') payload = { name: form.name, category_id: form.category_id };
       if (tab === 'projects') payload = { name: form.name };
       if (tab === 'drivers') payload = { name: form.name };
       if (tab === 'tractors') payload = { plate: form.plate, info: form.info };
@@ -954,7 +1010,7 @@ function Definitions({ defs, reload, request }) {
   const list = defs[tab] || [];
   return <div className="card"><h2>Tanımlar</h2><div className="defTabs">{defTabs.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setForm({}); }}>{label}</button>)}</div>
     <form className="definitionForm" onSubmit={add}>
-      {['projects', 'drivers', 'escorts', 'countries', 'expenseCategories'].includes(tab) && <input required placeholder="Ad / Tanım" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />}
+      {['projects', 'drivers', 'escorts', 'countries'].includes(tab) && <input required placeholder="Ad / Tanım" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />}
       {['tractors', 'trailers', 'escortVehicles'].includes(tab) && <><input required placeholder="Plaka" value={form.plate || ''} onChange={e => setForm({ ...form, plate: e.target.value })} /><input placeholder="Bilgiler" value={form.info || ''} onChange={e => setForm({ ...form, info: e.target.value })} /></>}
       {tab === 'cities' && <><select required value={form.country_id || ''} onChange={e => setForm({ ...form, country_id: e.target.value })}><option value="">Ülke seç</option>{defs.countries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input required placeholder="Şehir adı" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /></>}
       {tab === 'allowanceDefinitions' && <>
@@ -964,9 +1020,10 @@ function Definitions({ defs, reload, request }) {
         <input required type="number" step="0.01" placeholder="Yurt dışı günlük tutar" value={form.abroad_daily_amount || ''} onChange={e => setForm({ ...form, abroad_daily_amount: e.target.value })} />
         <select value={form.abroad_currency || 'EUR'} onChange={e => setForm({ ...form, abroad_currency: e.target.value })}><option>EUR</option><option>TRY</option><option>USD</option></select>
       </>}
-      {tab === 'expenseDefinitions' && <><input required placeholder="Masraf adı örn. Kantar" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /><select required value={form.category || ''} onChange={e => setForm({ ...form, category: e.target.value })}><option value="">Kategori seç</option>{(defs.expenseCategories || []).map(c => <option key={c.id || c.name}>{c.name}</option>)}</select><select value={form.default_currency || 'TRY'} onChange={e => setForm({ ...form, default_currency: e.target.value })}><option>TRY</option><option>EUR</option><option>USD</option></select><p className="hint formHint">Para birimi masraf tanımına bağlanır. Masraf girişinde değiştirilemez. Örn: TL Kantar ve Euro Kantar ayrı tanım olarak açılmalıdır.</p></>}
+      {tab === 'expenseCategories' && <><input required placeholder="Kategori adı örn. Kantar EUR / Yakıt" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /><select value={form.currency || 'TRY'} onChange={e => setForm({ ...form, currency: e.target.value })}><option>TRY</option><option>EUR</option></select></>}
+      {tab === 'expenseDefinitions' && <><input required placeholder="Masraf adı örn. Kantar / Mazot" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} /><select required value={form.category_id || ''} onChange={e => setForm({ ...form, category_id: e.target.value })}><option value="">Kategori seç</option>{(defs.expenseCategories || []).map(c => <option key={c.id} value={c.id}>{c.name} - {c.currency}</option>)}</select><ReadOnly label="Para birimi" value={(defs.expenseCategories || []).find(c => c.id === form.category_id)?.currency || '-'} /></>}
       <button className="primary">Ekle</button>
-    </form><div className="definitionList">{list.map(item => <div key={item.id}><span>{item.name || item.plate} {item.category ? `- ${item.category}` : ''} {item.default_currency ? `- ${item.default_currency}` : ''} {item.info ? `- ${item.info}` : ''}</span><button onClick={() => remove(item.id)}>Sil</button></div>)}</div></div>;
+    </form><div className="definitionList">{list.map(item => <div key={item.id}><span>{item.name || item.plate} {item.category ? `- ${item.category}` : ''} {item.currency ? `- ${item.currency}` : ''} {item.default_currency ? `- ${item.default_currency}` : ''} {item.info ? `- ${item.info}` : ''}</span><button onClick={() => remove(item.id)}>Sil</button></div>)}</div></div>;
 }
 
 function LabeledDate({ label, value, onChange }) {

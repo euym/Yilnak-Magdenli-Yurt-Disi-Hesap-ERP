@@ -506,80 +506,17 @@ th { background: #f7fbff; color: #102f4b; }
   }
 }
 
-/* ERP Yakıt Özeti: Excel kopyası değil, 4 ana ERP kutusu mantığı */
-.fuelOverviewCard > h3 {
-  background: #f8fafc;
-  color: #0f172a;
-}
-.fuelFourGrid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 14px;
-  padding: 14px;
-}
-.fuelMiniCard {
-  border: 1px solid #dbe3ee;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #ffffff;
-}
-.fuelMiniCard h4 {
-  margin: 0;
-  padding: 12px 14px;
-  font-size: 15px;
-  font-weight: 900;
-  border-bottom: 1px solid #e2e8f0;
-}
-.fuelMiniCard.tractor h4 {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-.fuelMiniCard.escort h4 {
-  background: #f5f3ff;
-  color: #6d28d9;
-}
-.fuelMiniCard.cost h4 {
-  background: #ecfdf5;
-  color: #047857;
-}
-.fuelMiniCard.general h4 {
-  background: #fff7ed;
-  color: #c2410c;
-}
-.fuelMiniCard .summaryRow {
-  min-height: 38px;
-}
-.fuelMiniCard .summaryRow.highlight {
-  background: #f8fafc;
-}
-.fuelMiniCard.tractor .summaryRow.highlight b {
-  color: #1d4ed8;
-}
-.fuelMiniCard.escort .summaryRow.highlight b {
-  color: #6d28d9;
-}
-.fuelMiniCard.cost .summaryRow.highlight b {
-  color: #047857;
-}
-.fuelMiniCard.general .summaryRow.highlight b {
-  color: #c2410c;
-}
-@media (max-width: 1200px) {
-  .fuelFourGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Revize: yan bilgi kutucukları kaldırılan ekranlar */
-.layout.single { grid-template-columns: 1fr; }
-
-/* Revize: yakıt özeti 6 sade tablo */
-.fuelSixGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: 14px;
-}
-.formHint { grid-column: 1 / -1; margin: 0; }
-@media (max-width: 980px) {
-  .fuelSixGrid { grid-template-columns: 1fr; }
-}
+/* Final revize: sade masraf ekrani + 6 yakit tablosu */
+.fullCard { max-width: 1280px; margin: 0 auto; width: 100%; }
+.lockedInput { background: #f3f4f6; color: #374151; font-weight: 700; cursor: not-allowed; }
+.fuelSummarySection { margin-top: 28px; }
+.fuelSummaryGrid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+.fuelSummaryGrid .expenseSummaryBox { border: 1px solid #e5e7eb; border-radius: 18px; padding: 16px; background: #fff; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }
+.fuelSummaryGrid .expenseSummaryBox h3 { margin: 0 0 12px; font-size: 16px; color: #111827; }
+.summaryRows { display: grid; gap: 8px; }
+.summaryRow { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #eef2f7; padding: 8px 0; font-size: 14px; }
+.summaryRow span { color: #64748b; }
+.summaryRow b { color: #111827; text-align: right; }
+.summaryRow.highlight { background: #f8fafc; border-radius: 10px; border-bottom: 0; padding: 10px; }
+@media (max-width: 1100px) { .fuelSummaryGrid { grid-template-columns: repeat(2, minmax(240px, 1fr)); } }
+@media (max-width: 720px) { .fuelSummaryGrid { grid-template-columns: 1fr; } }

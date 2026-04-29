@@ -27,11 +27,12 @@ const tableMap = {
 };
 
 function cleanPayload(kind, payload) {
-  if (['projects', 'drivers', 'escorts', 'countries', 'expenseCategories'].includes(kind)) return { name: String(payload.name || '').trim() };
+  if (['projects', 'drivers', 'escorts', 'countries'].includes(kind)) return { name: String(payload.name || '').trim() };
   if (['tractors', 'trailers', 'escortVehicles'].includes(kind)) return { plate: String(payload.plate || '').trim().toUpperCase(), info: String(payload.info || '').trim() || null };
   if (kind === 'cities') return { country_id: payload.country_id, name: String(payload.name || '').trim() };
   if (kind === 'allowanceDefinitions') return { name: String(payload.name || '').trim(), domestic_daily_amount: Number(payload.domestic_daily_amount || 0), domestic_currency: String(payload.domestic_currency || 'TRY').trim().toUpperCase(), abroad_daily_amount: Number(payload.abroad_daily_amount || 0), abroad_currency: String(payload.abroad_currency || 'EUR').trim().toUpperCase(), is_active: payload.is_active !== false };
-  if (kind === 'expenseDefinitions') return { name: String(payload.name || '').trim(), category: String(payload.category || '').trim(), default_currency: String(payload.default_currency || 'TRY').trim().toUpperCase() };
+  if (kind === 'expenseCategories') return { name: String(payload.name || '').trim(), currency: String(payload.currency || 'TRY').trim().toUpperCase(), is_active: payload.is_active !== false };
+  if (kind === 'expenseDefinitions') return { name: String(payload.name || '').trim(), category_id: payload.category_id || null };
   return payload;
 }
 
@@ -50,7 +51,7 @@ app.get('/definitions', async (_, res) => {
       supabase.from('erp_escort_vehicles').select('*').order('plate'),
       supabase.from('erp_countries').select('*').order('name'),
       supabase.from('erp_cities').select('*').order('name'),
-      supabase.from('erp_expense_categories').select('*').order('name'),
+      supabase.from('erp_expense_categories').select('*').eq('is_active', true).order('name'),
       supabase.from('erp_expense_definitions').select('*').order('name'),
       supabase.from('erp_allowance_definitions').select('*').order('created_at', { ascending: false })
     ]);
@@ -68,7 +69,7 @@ app.get('/definitions', async (_, res) => {
       countries: q[6].data || [],
       cities: q[7].data || [],
       expenseCategories: q[8].data || [],
-      expenseDefinitions: q[9].data || [],
+      expenseDefinitions: (q[9].data || []).map(d => ({ ...d, default_currency: d.default_currency || 'TRY' })),
       allowanceDefinitions: q[10].data || []
     }));
   } catch (err) { fail(res, 500, err.message); }
@@ -118,10 +119,10 @@ app.post('/advances', async (req, res) => {
 app.get('/expenses', async (_, res) => {
   const { data, error } = await supabase
     .from('erp_expenses')
-    .select(`*, expense:erp_expense_definitions(name, category), country:erp_countries(name), city:erp_cities(name)`)
+    .select(`*, expense:erp_expense_definitions(name, category, default_currency, category_id), country:erp_countries(name), city:erp_cities(name)`)
     .order('created_at', { ascending: false });
   if (error) return fail(res, 400, error.message);
-  res.json(ok((data || []).map(x => ({ ...x, expense_name: x.expense?.name || null, category: x.expense?.category || null, country_name: x.country?.name || null, city_name: x.city?.name || null }))));
+  res.json(ok((data || []).map(x => ({ ...x, expense_name: x.expense?.name || null, category: x.expense?.category || null, category_id: x.category_id || x.expense?.category_id || null, country_name: x.country?.name || null, city_name: x.city?.name || null }))));
 });
 
 app.post('/expenses', async (req, res) => {
@@ -129,14 +130,15 @@ app.post('/expenses', async (req, res) => {
   if (!payload.trip_id) return fail(res, 422, 'Sefer zorunlu.');
   if (!payload.expense_definition_id) return fail(res, 422, 'Masraf türü zorunlu.');
   if (!payload.amount) return fail(res, 422, 'Tutar zorunlu.');
-  const { data: def, error: defError } = await supabase.from('erp_expense_definitions').select('category, default_currency').eq('id', payload.expense_definition_id).single();
+  const { data: def, error: defError } = await supabase.from('erp_expense_definitions').select('category, default_currency, category_id').eq('id', payload.expense_definition_id).single();
   if (defError) return fail(res, 400, defError.message);
-  if (payload.currency && def.default_currency && String(payload.currency).toUpperCase() !== String(def.default_currency).toUpperCase()) return fail(res, 422, 'Masraf para birimi tanımla uyumlu değil.');
-  if (def.category === 'Yakıt' && !payload.fuel_status) return fail(res, 422, 'Yakıt için Boş/Dolu zorunlu.');
+  if (def.default_currency && payload.currency && String(payload.currency).toUpperCase() !== String(def.default_currency).toUpperCase()) return fail(res, 422, `Bu masraf tanımı sadece ${def.default_currency} para biriminde kaydedilebilir.`);
+  if (def.category === 'Yakıt' && payload.vehicle_type === 'Çekici' && !payload.fuel_status) return fail(res, 422, 'Çekici yakıtı için Boş/Dolu zorunlu.');
   if (def.category === 'Yakıt' && !payload.liter) return fail(res, 422, 'Yakıt için litre zorunlu.');
   const clean = {
     trip_id: payload.trip_id,
     expense_definition_id: payload.expense_definition_id,
+    category_id: def.category_id || null,
     country_id: payload.country_id || null,
     city_id: payload.city_id || null,
     vehicle_type: payload.vehicle_type || null,
@@ -150,6 +152,39 @@ app.post('/expenses', async (req, res) => {
   const { data, error } = await supabase.from('erp_expenses').insert(clean).select().single();
   if (error) return fail(res, 400, error.message);
   res.json(ok(data));
+});
+
+
+app.post('/definitions/expenseDefinitions', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const category_id = req.body?.category_id || null;
+    if (!name) return fail(res, 422, 'Masraf adı zorunlu.');
+    if (!category_id) return fail(res, 422, 'Kategori zorunlu.');
+    const { data: cat, error: catError } = await supabase.from('erp_expense_categories').select('id, name, currency').eq('id', category_id).single();
+    if (catError || !cat) return fail(res, 400, 'Kategori bulunamadı.');
+    const payload = { name, category_id: cat.id, category: cat.name, default_currency: cat.currency };
+    const { data, error } = await supabase.from('erp_expense_definitions').insert(payload).select().single();
+    if (error) return fail(res, 400, error.message);
+    res.json(ok(data));
+  } catch (err) { fail(res, 500, err.message); }
+});
+
+app.post('/definitions/:kind', async (req, res) => {
+  const table = tableMap[req.params.kind];
+  if (!table) return fail(res, 404, 'Tanım türü bulunamadı.');
+  const payload = cleanPayload(req.params.kind, req.body || {});
+  const { data, error } = await supabase.from(table).insert(payload).select().single();
+  if (error) return fail(res, 400, error.message);
+  res.json(ok(data));
+});
+
+app.delete('/definitions/:kind/:id', async (req, res) => {
+  const table = tableMap[req.params.kind];
+  if (!table) return fail(res, 404, 'Tanım türü bulunamadı.');
+  const { error } = await supabase.from(table).delete().eq('id', req.params.id);
+  if (error) return fail(res, 400, error.message);
+  res.json(ok({ deleted: true }));
 });
 
 const port = process.env.PORT || 10000;
