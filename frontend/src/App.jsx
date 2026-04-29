@@ -493,12 +493,6 @@ function ReportScreen({ defs, trips, expenses, advances, allowances }) {
       <h3>Verilen Avans Tablosu</h3>
       <div className="tableWrap"><table><thead><tr><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead>
       <tbody>{tripAdvances.length ? tripAdvances.map(x => <tr key={x.id}><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.description || x.note || '-'}</td></tr>) : <tr><td colSpan="6">Avans kaydı yok.</td></tr>}</tbody></table></div>
-      <div style={{marginTop:'10px'}}>
-        <button className="primary" onClick={() => alert('Seçilen masraflar birleştirildi (simülasyon)')}>
-          Seçilenleri Birleştir
-        </button>
-      </div>
-
     </section>
 
     <section className="reportSection">
@@ -638,7 +632,8 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
   const isFuel = selectedDef?.category === 'Yakıt';
   const needsFuelStatus = isFuel && expense.vehicle_type === 'Çekici';
   const needsLiter = isFuel;
-  const summary = expenses.reduce((acc, item) => {
+  const selectedTripExpenses = expense.trip_id ? expenses.filter(item => item.trip_id === expense.trip_id) : expenses;
+  const summary = selectedTripExpenses.reduce((acc, item) => {
     const amount = numberValue(item.amount); acc.total += amount;
     if (item.category === 'Yakıt') {
       acc.fuel += amount;
@@ -768,7 +763,7 @@ function ExpenseScreen({ defs, trips, expenses, expense, setExpense, request, re
           {editingExpenseId && <button type="button" className="ghost" onClick={cancelExpenseEdit}>Vazgeç / Yeni Masraf</button>}
         </div>
       </form>
-      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>İşlem</th></tr></thead><tbody>{expenses.length ? expenses.map(x => <tr key={x.id} className={editingExpenseId === x.id ? 'editingRow' : ''}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td><td className="rowActions"><button type="button" onClick={() => editExpense(x)}>Düzelt</button><button type="button" className="danger" onClick={() => deleteExpense(x)}>Sil</button></td></tr>) : <tr><td colSpan="10">Henüz masraf girilmedi.</td></tr>}</tbody></table></div>
+      <h3>Girilen Masraflar</h3><div className="tableWrap"><table><thead><tr><th>Masraf</th><th>Kategori</th><th>Ülke</th><th>Araç</th><th>Durum</th><th>Litre</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>İşlem</th></tr></thead><tbody>{selectedTripExpenses.length ? selectedTripExpenses.map(x => <tr key={x.id} className={editingExpenseId === x.id ? 'editingRow' : ''}><td>{x.expense_name}</td><td>{x.category}</td><td>{x.country_name || '-'}</td><td>{x.vehicle_type || '-'}</td><td>{x.fuel_status || '-'}</td><td>{x.liter || '-'}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.expense_date || '-'}</td><td className="rowActions"><button type="button" onClick={() => editExpense(x)}>Düzelt</button><button type="button" className="danger" onClick={() => deleteExpense(x)}>Sil</button></td></tr>) : <tr><td colSpan="10">{expense.trip_id ? 'Seçili sefere ait masraf yok.' : 'Henüz masraf girilmedi.'}</td></tr>}</tbody></table></div>
     </main>
   </div>;
 }
@@ -1049,6 +1044,10 @@ function ExpenseSummaryScreen({ defs, trips, expenses }) {
               <thead><tr><th>Seç</th><th>Masraf</th><th>Kategori</th><th>Araç</th><th>Ülke</th><th>Tutar</th><th>Para</th><th>Tarih</th></tr></thead>
               <tbody>{otherRows()}</tbody>
             </table>
+          </div>
+          <div className="formActions">
+            <button className="primary" type="button" onClick={() => alert(`Seçilen diğer masraflar toplamı: ${moneyList(selectedOtherItems)}`)}>Seçilenleri Birleştir</button>
+            <button className="ghost" type="button" onClick={() => setSelectedOtherIds([])}>Seçimi Temizle</button>
           </div>
           <div className="summaryRows otherMergeTotal">
             <ExpenseSummaryRow label="Seçili Diğer Masraflar Birleşik Toplam" value={moneyList(selectedOtherItems)} highlight />
