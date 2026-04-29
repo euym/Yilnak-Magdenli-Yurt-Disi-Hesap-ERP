@@ -583,3 +583,10 @@ th { background: #f7fbff; color: #102f4b; }
 .miniBtn.danger:hover {
   background: #fef2f2;
 }
+
+.tripItem { cursor: pointer; border-radius: 12px; padding: 10px; transition: background .15s ease, border .15s ease; }
+.tripItem:hover, .tripItem.activeTrip { background: #f3f7fb; }
+.tripActions { margin-top: 8px; }
+.formActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.secondary { border: 1px solid #cfd8e3; background: #fff; color: #334155; border-radius: 12px; padding: 11px 18px; font-weight: 700; cursor: pointer; }
+.secondary:hover { background: #f8fafc; }

@@ -125,6 +125,7 @@ function App() {
   const [advances, setAdvances] = useState([]);
   const [allowances, setAllowances] = useState([]);
   const [trip, setTrip] = useState(blankTrip);
+  const [editingTripId, setEditingTripId] = useState(null);
   const [expense, setExpense] = useState(blankExpense);
   const [advance, setAdvance] = useState(blankAdvance);
   const [allowance, setAllowance] = useState(blankAllowance);
@@ -248,6 +249,69 @@ function App() {
     return defs.cities.filter(c => c.country_id === countryId);
   }
 
+  function fillTripForm(item) {
+    setEditingTripId(item.id);
+    setTrip({
+      ...blankTrip,
+      ...item,
+      project_id: item.project_id || '',
+      project_name: item.project_name || '',
+      load_type: item.load_type || '',
+      load_width: item.load_width ?? '',
+      load_height: item.load_height ?? '',
+      load_length: item.load_length ?? '',
+      load_weight: item.load_weight ?? '',
+      tractor_tonnage: item.tractor_tonnage ?? '',
+      trailer_tonnage: item.trailer_tonnage ?? '',
+      tonnage_capacity_formula: item.tonnage_capacity_formula ?? 130000,
+      start_country_id: item.start_country_id || '',
+      start_city_id: item.start_city_id || '',
+      unloading_country_id: item.unloading_country_id || '',
+      unloading_city_id: item.unloading_city_id || '',
+      end_country_id: item.end_country_id || '',
+      end_city_id: item.end_city_id || '',
+      trip_count: item.trip_count ?? 1,
+      start_km: item.start_km ?? '',
+      end_km: item.end_km ?? '',
+      domestic_start_date: item.domestic_start_date || '',
+      domestic_exit_date: item.domestic_exit_date || '',
+      domestic_return_date: item.domestic_return_date || '',
+      domestic_end_date: item.domestic_end_date || '',
+      abroad_entry_date: item.abroad_entry_date || '',
+      abroad_exit_date: item.abroad_exit_date || '',
+      escort_goes_abroad: item.escort_goes_abroad ?? true,
+      driver_id: item.driver_id || '',
+      tractor_id: item.tractor_id || '',
+      tractor_info_id: item.tractor_info_id || '',
+      trailer_id: item.trailer_id || '',
+      trailer_info_id: item.trailer_info_id || '',
+      escort_id: item.escort_id || '',
+      escort_vehicle_id: item.escort_vehicle_id || '',
+      escort_vehicle_info_id: item.escort_vehicle_info_id || ''
+    });
+    setMessage('Sefer düzeltme modunda. Değişiklikleri yapıp Güncelle butonuna basınız.');
+  }
+
+  function cancelTripEdit() {
+    setEditingTripId(null);
+    setTrip(blankTrip);
+    setMessage('Sefer düzeltme iptal edildi.');
+  }
+
+  async function deleteTrip(item) {
+    const label = item.project_name || 'Projesiz Sefer';
+    if (!window.confirm(label + ' seferi silinsin mi?')) return;
+    try {
+      await request('/trips/' + item.id, { method: 'DELETE' });
+      if (editingTripId === item.id) cancelTripEdit();
+      await loadAll();
+      setMessage('Sefer silindi.');
+    } catch (err) {
+      console.error(err);
+      alert('Sefer silinemedi: ' + err.message);
+    }
+  }
+
   async function saveTrip(e) {
     e.preventDefault();
 
@@ -265,22 +329,29 @@ function App() {
         abroad_work_days: tripAllowanceDays.abroadDays
       });
 
-      const saved = await request('/trips', {
-        method: 'POST',
+      const saved = await request(editingTripId ? '/trips/' + editingTripId : '/trips', {
+        method: editingTripId ? 'PUT' : 'POST',
         body: JSON.stringify(payload)
       });
 
-      const nextExpense = { ...blankExpense, trip_id: saved.id };
-      setExpense(nextExpense);
-      setTrip(blankTrip);
-      setScreen('expenses');
-      setMessage('Sefer kaydedildi. Masraf ekranına geçildi.');
+      if (editingTripId) {
+        setEditingTripId(null);
+        setTrip(blankTrip);
+        setMessage('Sefer güncellendi.');
+        await loadAll();
+      } else {
+        const nextExpense = { ...blankExpense, trip_id: saved.id };
+        setExpense(nextExpense);
+        setTrip(blankTrip);
+        setScreen('expenses');
+        setMessage('Sefer kaydedildi. Masraf ekranına geçildi.');
 
-      // Ekran geçişini bekletmemek için liste yenilemeyi arkada çalıştır.
-      loadAll().catch(err => {
-        console.error(err);
-        setMessage('Sefer kaydedildi ancak liste yenileme uyarısı: ' + err.message);
-      });
+        // Ekran geçişini bekletmemek için liste yenilemeyi arkada çalıştır.
+        loadAll().catch(err => {
+          console.error(err);
+          setMessage('Sefer kaydedildi ancak liste yenileme uyarısı: ' + err.message);
+        });
+      }
     } catch (err) {
       console.error(err);
       alert('Sefer kaydedilemedi: ' + err.message);
@@ -309,7 +380,7 @@ function App() {
       {screen === 'costActual' && <CostActualScreen trips={trips} expenses={expenses} advances={advances} allowances={allowances} />}
       {screen === 'report' && <ReportScreen defs={defs} trips={trips} expenses={expenses} advances={advances} allowances={allowances} />}
       {screen === 'expenseSummary' && <ExpenseSummaryScreen defs={defs} trips={trips} expenses={expenses} />}
-      {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} tripAllowanceDays={tripAllowanceDays} citiesFor={citiesFor} />}
+      {screen === 'trip' && <TripScreen defs={defs} trips={trips} trip={trip} setField={setField} saveTrip={saveTrip} totalTonnage={totalTonnage} tonnagePercent={tonnagePercent} tripKm={tripKm} totalTripKm={totalTripKm} driverProjectTotalTripCount={driverProjectTotalTripCount} tripAllowanceDays={tripAllowanceDays} citiesFor={citiesFor} editingTripId={editingTripId} fillTripForm={fillTripForm} deleteTrip={deleteTrip} cancelTripEdit={cancelTripEdit} />}
       {screen === 'allowances' && <AllowanceScreen defs={defs} trips={trips} allowances={allowances} allowance={allowance} setAllowance={setAllowance} request={request} reload={loadAll} />}
       {screen === 'advances' && <AdvanceScreen trips={trips} advances={advances} expenses={expenses} advance={advance} setAdvance={setAdvance} request={request} reload={loadAll} />}
       {screen === 'expenses' && <ExpenseScreen defs={defs} trips={trips} expenses={expenses} expense={expense} setExpense={setExpense} request={request} reload={loadAll} />}
@@ -429,7 +500,7 @@ function CostActualScreen() {
   </div>;
 }
 
-function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonnagePercent, tripKm, totalTripKm, driverProjectTotalTripCount, tripAllowanceDays, citiesFor }) {
+function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonnagePercent, tripKm, totalTripKm, driverProjectTotalTripCount, tripAllowanceDays, citiesFor, editingTripId, fillTripForm, deleteTrip, cancelTripEdit }) {
   return (
     <div className="layout">
       <aside className="sideCard">
@@ -437,11 +508,18 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
         {trips.length === 0 && <p>Henüz sefer yok.</p>}
         {trips.map(t => {
           const driverName = defs.drivers.find(d => d.id === t.driver_id)?.name || 'Şoför yok';
-          return <div className="tripItem" key={t.id}><b>{t.project_name || 'Projesiz Sefer'}</b><span>{driverName} · Sefer: {Number(t.trip_count || 1)} · {new Date(t.created_at).toLocaleDateString('tr-TR')}</span></div>;
+          return <div className={`tripItem ${editingTripId === t.id ? 'activeTrip' : ''}`} key={t.id} onClick={() => fillTripForm(t)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') fillTripForm(t); }}>
+            <b>{t.project_name || 'Projesiz Sefer'}</b>
+            <span>{driverName} · Sefer: {Number(t.trip_count || 1)} · {new Date(t.created_at).toLocaleDateString('tr-TR')}</span>
+            <div className="rowActions tripActions" onClick={e => e.stopPropagation()}>
+              <button type="button" className="miniBtn" onClick={() => fillTripForm(t)}>Düzelt</button>
+              <button type="button" className="miniBtn danger" onClick={() => deleteTrip(t)}>Sil</button>
+            </div>
+          </div>;
         })}
       </aside>
       <main className="card">
-        <h2>Yeni Sefer Bilgileri</h2>
+        <h2>{editingTripId ? 'Sefer Bilgilerini Düzelt' : 'Yeni Sefer Bilgileri'}</h2>
         <form onSubmit={saveTrip}>
           <section><h3>Yük Bilgileri</h3><div className="grid two">
             <Select label="Proje adı" value={trip.project_id} onChange={v => setField('project_id', v)} options={defs.projects} textKey="name" />
@@ -495,7 +573,7 @@ function TripScreen({ defs, trips, trip, setField, saveTrip, totalTonnage, tonna
             <ReadOnly label="Yurt Dışı Çalışılan Gün" value={tripAllowanceDays.abroadDays.toLocaleString('tr-TR')} />
           </div><p className="hint">Kural: Pazar günleri çift sayılır. Yurda giriş günü yurt içi harcırahına dahildir.</p></section>
 
-          <button className="primary" type="submit">Seferi Kaydet ve Masrafa Geç</button>
+          <div className="formActions"><button className="primary" type="submit">{editingTripId ? 'Seferi Güncelle' : 'Seferi Kaydet ve Masrafa Geç'}</button>{editingTripId && <button type="button" className="secondary" onClick={cancelTripEdit}>Vazgeç</button>}</div>
         </form>
       </main>
     </div>
@@ -899,6 +977,7 @@ function moneyByCurrency(items, amountKey = 'amount', currencyKey = 'currency') 
 }
 
 function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request, reload }) {
+  const [editingAdvanceId, setEditingAdvanceId] = useState(null);
   const selectedTripId = advance.trip_id || '';
   const tripExpenses = selectedTripId ? expenses.filter(x => x.trip_id === selectedTripId) : [];
   const tripAdvances = selectedTripId ? advances.filter(x => x.trip_id === selectedTripId) : advances;
@@ -924,6 +1003,38 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
     setAdvance(prev => ({ ...prev, [name]: value }));
   }
 
+  function fillAdvanceForm(row) {
+    setEditingAdvanceId(row.id);
+    setAdvance({
+      trip_id: row.trip_id || '',
+      receiver_type: row.receiver_type || '',
+      receiver_name: row.receiver_name || '',
+      amount: row.amount ?? '',
+      currency: row.currency || 'TRY',
+      advance_date: row.advance_date || '',
+      note: row.note || row.description || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelAdvanceEdit() {
+    setEditingAdvanceId(null);
+    setAdvance({ ...blankAdvance, trip_id: advance.trip_id, currency: advance.currency || 'TRY' });
+  }
+
+  async function deleteAdvance(row) {
+    if (!confirm(`${row.receiver_name || 'Avans'} kaydı silinsin mi?`)) return;
+    try {
+      await request(`/advances/${row.id}`, { method: 'DELETE' });
+      if (editingAdvanceId === row.id) cancelAdvanceEdit();
+      await reload();
+      alert('Avans silindi');
+    } catch (err) {
+      console.error(err);
+      alert('Avans silinemedi: ' + err.message);
+    }
+  }
+
   async function saveAdvance(e) {
     e.preventDefault();
     if (!advance.trip_id) return alert('Sefer seçiniz.');
@@ -941,10 +1052,13 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
 
     if (!confirm(msg)) return;
 
-    await request('/advances', { method: 'POST', body: JSON.stringify(advance) });
+    const path = editingAdvanceId ? `/advances/${editingAdvanceId}` : '/advances';
+    const method = editingAdvanceId ? 'PUT' : 'POST';
+    await request(path, { method, body: JSON.stringify(advance) });
+    setEditingAdvanceId(null);
     setAdvance({ ...blankAdvance, trip_id: advance.trip_id, currency: advance.currency || 'TRY' });
     await reload();
-    alert('Avans eklendi');
+    alert(editingAdvanceId ? 'Avans güncellendi' : 'Avans eklendi');
   }
 
   return <div className="layout">
@@ -964,7 +1078,8 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
         })}
       </div>
     </aside>
-    <main className="card"><h2>Avans Girişi</h2>
+    <main className="card"><h2>{editingAdvanceId ? 'Avans Düzenle' : 'Avans Girişi'}</h2>
+      {editingAdvanceId && <p className="hint">Düzenleme modundasınız. Kaydettiğinizde seçili avans güncellenir.</p>}
       <form onSubmit={saveAdvance}>
         <div className="grid two">
           <Select label="Sefer seç" value={advance.trip_id} onChange={v => setAdvanceField('trip_id', v)} options={trips.map(t => ({ ...t, label: (t.project_name || 'Projesiz') + ' - ' + new Date(t.created_at).toLocaleDateString('tr-TR') }))} textKey="label" />
@@ -977,9 +1092,12 @@ function AdvanceScreen({ trips, advances, expenses, advance, setAdvance, request
           <input type="date" value={advance.advance_date || ''} onChange={e => setAdvanceField('advance_date', e.target.value)} />
           <input placeholder="Açıklama" value={advance.note || ''} onChange={e => setAdvanceField('note', e.target.value)} />
         </div>
-        <button className="primary" type="submit">Avans Ekle</button>
+        <div className="expenseFormActions">
+          <button className="primary" type="submit">{editingAdvanceId ? 'Avansı Güncelle' : 'Avans Ekle'}</button>
+          {editingAdvanceId && <button className="ghost" type="button" onClick={cancelAdvanceEdit}>Vazgeç</button>}
+        </div>
       </form>
-      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th></tr></thead><tbody>{tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || x.description || '-'}</td></tr>)}</tbody></table></div>
+      <h3>Seçili Sefer Avansları</h3><div className="tableWrap"><table><thead><tr><th>Sefer</th><th>Alan Tipi</th><th>Alan Kişi/Firma</th><th>Tutar</th><th>Para</th><th>Tarih</th><th>Açıklama</th><th>İşlem</th></tr></thead><tbody>{tripAdvances.length ? tripAdvances.map(x => <tr key={x.id}><td>{x.trip_name || '-'}</td><td>{x.receiver_type}</td><td>{x.receiver_name}</td><td>{x.amount}</td><td>{x.currency}</td><td>{x.advance_date || '-'}</td><td>{x.note || x.description || '-'}</td><td><div className="rowActions"><button type="button" className="miniBtn" onClick={() => fillAdvanceForm(x)}>Düzelt</button><button type="button" className="miniBtn danger" onClick={() => deleteAdvance(x)}>Sil</button></div></td></tr>) : <tr><td colSpan="8">Avans kaydı yok.</td></tr>}</tbody></table></div>
     </main>
   </div>;
 }
@@ -1042,13 +1160,17 @@ function AllowanceSummaryTable({ title, personName, dates, daily, currency, incl
 
       <div className="allowanceInfoBlock">
         <h4>Yurt Dışı Tarihleri</h4>
-        <div className="infoRows">
-          <div><span>Yurt Dışı Giriş</span><b>{includeAbroad ? (dates.abroad_entry_date || '-') : '-'}</b></div>
-          <div><span>Yurt Dışı Çıkış</span><b>{includeAbroad ? (dates.abroad_exit_date || '-') : '-'}</b></div>
-          <div><span>Yurt Dışı Geçen Gün</span><b>{abroadDays.toLocaleString('tr-TR')}</b></div>
-          <div><span>Günlük Harcırah</span><b>{includeAbroad ? `${numberValue(daily.abroad).toLocaleString('tr-TR')} ${currency.abroad}` : `0 ${currency.abroad}`}</b></div>
-          <div className="totalRow"><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {currency.abroad}</b></div>
-        </div>
+        {includeAbroad ? (
+          <div className="infoRows">
+            <div><span>Yurt Dışı Giriş</span><b>{dates.abroad_entry_date || '-'}</b></div>
+            <div><span>Yurt Dışı Çıkış</span><b>{dates.abroad_exit_date || '-'}</b></div>
+            <div><span>Yurt Dışı Geçen Gün</span><b>{abroadDays.toLocaleString('tr-TR')}</b></div>
+            <div><span>Günlük Harcırah</span><b>{numberValue(daily.abroad).toLocaleString('tr-TR')} {currency.abroad}</b></div>
+            <div className="totalRow"><span>Yurt Dışı Harcırah</span><b>{abroadTotal.toLocaleString('tr-TR')} {currency.abroad}</b></div>
+          </div>
+        ) : (
+          <div className="emptyAbroadDates" aria-label="Yurt dışı tarihleri boş"></div>
+        )}
       </div>
     </div>
   </section>;
