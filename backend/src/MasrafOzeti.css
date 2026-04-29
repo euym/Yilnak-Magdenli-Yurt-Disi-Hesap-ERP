@@ -1,6 +1,0 @@
-.masraf-ozeti-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.erp-box{border:1px solid #ddd;border-radius:6px}
-.erp-box-title{padding:10px;border-bottom:1px solid #ddd;font-weight:600}
-.erp-box-body{padding:8px}
-.erp-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee}
-.erp-row:last-child{border:none}
